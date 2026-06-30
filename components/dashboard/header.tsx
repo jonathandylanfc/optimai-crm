@@ -13,8 +13,11 @@ const sectionTitles: Record<Section, string> = {
   overview: "Overview",
   pipeline: "Pipeline",
   deals: "Deals",
+  customers: "Customers",
   team: "Team Performance",
+  forecasting: "Forecasting",
   reports: "Reports",
+  settings: "Settings",
 };
 
 export function Header({ activeSection }: HeaderProps) {
