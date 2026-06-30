@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCreateCustomer, useUpdateCustomer, type CustomerPayload } from "@/lib/hooks/use-customers";
+import { createCustomer, updateCustomer, type CustomerPayload } from "@/app/actions/customers";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 interface CustomerFormProps {
@@ -64,11 +65,9 @@ const EMPTY_FORM: FormState = {
 
 export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const create = useCreateCustomer();
-  const update = useUpdateCustomer();
-
+  const [isPending, startTransition] = useTransition();
+  const qc = useQueryClient();
   const isEdit = !!editCustomer;
-  const isPending = create.isPending || update.isPending;
 
   useEffect(() => {
     if (editCustomer) {
@@ -112,12 +111,15 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
       payment_date: form.payment_date || undefined,
     };
 
-    if (isEdit && editCustomer) {
-      await update.mutateAsync({ id: editCustomer.id, payload });
-    } else {
-      await create.mutateAsync(payload);
-    }
-    onClose();
+    startTransition(async () => {
+      if (isEdit && editCustomer) {
+        await updateCustomer(editCustomer.id, payload);
+      } else {
+        await createCustomer(payload);
+      }
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      onClose();
+    });
   }
 
   return (

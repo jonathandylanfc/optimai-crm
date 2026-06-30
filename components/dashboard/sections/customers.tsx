@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCustomers, useDeleteCustomer } from "@/lib/hooks/use-customers";
+import { useCustomers } from "@/lib/hooks/use-customers";
+import { deleteCustomer as deleteCustomerAction } from "@/app/actions/customers";
+import { useQueryClient } from "@tanstack/react-query";
 import { CustomerForm } from "./customer-form";
 
 const tierColors: Record<string, string> = {
@@ -76,7 +78,8 @@ export function CustomersSection() {
   const [deleteTarget, setDeleteTarget] = useState<MappedCustomer | null>(null);
 
   const { data: rawCustomers, isLoading } = useCustomers();
-  const deleteCustomer = useDeleteCustomer();
+  const qc = useQueryClient();
+  const [isDeleting, startDeleteTransition] = useTransition();
 
   const customers: MappedCustomer[] = (rawCustomers ?? []).map((c: {
     id: string; name: string; industry?: string; tier: string;
@@ -126,10 +129,13 @@ export function CustomersSection() {
     setFormOpen(true);
   }
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!deleteTarget) return;
-    await deleteCustomer.mutateAsync(deleteTarget.id);
-    setDeleteTarget(null);
+    startDeleteTransition(async () => {
+      await deleteCustomerAction(deleteTarget.id);
+      qc.invalidateQueries({ queryKey: ["customers"] });
+      setDeleteTarget(null);
+    });
   }
 
   return (
