@@ -28,6 +28,9 @@ export interface CustomerPayload {
   phone?: string;
   health_score?: number;
   trend?: "up" | "down" | "stable";
+  contract_value?: number;
+  contract_length_months?: number;
+  payment_date?: string;
 }
 
 export function useCreateCustomer() {

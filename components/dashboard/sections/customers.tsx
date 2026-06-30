@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2, Search, Plus, MapPin, Mail, Phone, DollarSign,
   Calendar, ExternalLink, Star, TrendingUp, TrendingDown, Filter,
-  Pencil, Trash2, MoreHorizontal,
+  Pencil, Trash2, MoreHorizontal, FileText, Clock,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -63,6 +63,9 @@ type MappedCustomer = {
   healthScore: number;
   trend: string;
   lastContact: string;
+  contractValue: number;
+  contractLengthMonths: number | null;
+  paymentDate: string | null;
 };
 
 export function CustomersSection() {
@@ -79,6 +82,7 @@ export function CustomersSection() {
     id: string; name: string; industry?: string; tier: string;
     location?: string; contact_name?: string; email?: string; phone?: string;
     health_score?: number; trend?: string; last_contact_at?: string;
+    contract_value?: number; contract_length_months?: number | null; payment_date?: string | null;
     deals?: { id: string; value: number; stage: string }[];
   }) => ({
     id: c.id,
@@ -94,6 +98,9 @@ export function CustomersSection() {
     healthScore: c.health_score ?? 0,
     trend: c.trend ?? "stable",
     lastContact: formatLastContact(c.last_contact_at ?? null),
+    contractValue: Number(c.contract_value ?? 0),
+    contractLengthMonths: c.contract_length_months ?? null,
+    paymentDate: c.payment_date ?? null,
   }));
 
   const filteredCustomers = customers.filter((c) => {
@@ -268,10 +275,6 @@ export function CustomersSection() {
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Revenue</span>
-                        <span className="font-medium text-foreground">${customer.totalRevenue.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Active Deals</span>
                         <span className="font-medium text-foreground">{customer.activeDeals}</span>
                       </div>
@@ -281,6 +284,30 @@ export function CustomersSection() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Contract info */}
+                  {(customer.contractValue > 0 || customer.contractLengthMonths || customer.paymentDate) && (
+                    <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-secondary/50 border border-border">
+                      {customer.contractValue > 0 && (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
+                          <span className="font-semibold text-foreground">${customer.contractValue.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {customer.contractLengthMonths && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>{customer.contractLengthMonths}mo</span>
+                        </div>
+                      )}
+                      {customer.paymentDate && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground ml-auto">
+                          <Calendar className="w-3.5 h-3.5 shrink-0" />
+                          <span>{new Date(customer.paymentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Health score */}
                   <div className="flex items-center justify-between pt-4 border-t border-border">

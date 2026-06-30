@@ -23,6 +23,9 @@ interface CustomerFormProps {
     phone: string;
     healthScore: number;
     trend: string;
+    contractValue: number;
+    contractLengthMonths: number | null;
+    paymentDate: string | null;
   } | null;
 }
 
@@ -39,6 +42,9 @@ interface FormState {
   phone: string;
   health_score: number;
   trend: Trend;
+  contract_value: string;
+  contract_length_months: string;
+  payment_date: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -51,6 +57,9 @@ const EMPTY_FORM: FormState = {
   phone: "",
   health_score: 80,
   trend: "stable",
+  contract_value: "",
+  contract_length_months: "",
+  payment_date: "",
 };
 
 export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps) {
@@ -73,6 +82,9 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
         phone: editCustomer.phone === "—" ? "" : editCustomer.phone,
         health_score: editCustomer.healthScore,
         trend: editCustomer.trend as Trend,
+        contract_value: editCustomer.contractValue > 0 ? String(editCustomer.contractValue) : "",
+        contract_length_months: editCustomer.contractLengthMonths != null ? String(editCustomer.contractLengthMonths) : "",
+        payment_date: editCustomer.paymentDate ?? "",
       });
     } else {
       setForm(EMPTY_FORM);
@@ -95,6 +107,9 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
       phone: form.phone.trim() || undefined,
       health_score: form.health_score,
       trend: form.trend,
+      contract_value: form.contract_value ? parseFloat(form.contract_value) : undefined,
+      contract_length_months: form.contract_length_months ? parseInt(form.contract_length_months) : undefined,
+      payment_date: form.payment_date || undefined,
     };
 
     if (isEdit && editCustomer) {
@@ -107,7 +122,7 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-[560px] bg-card border-border">
+      <DialogContent className="sm:max-w-[580px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">
             {isEdit ? "Edit Client" : "Add New Client"}
@@ -194,6 +209,62 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
                   <SelectItem value="Starter">Starter</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Contract details */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Contract</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm text-muted-foreground">Contract Value</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={form.contract_value}
+                    onChange={(e) => set("contract_value", e.target.value)}
+                    placeholder="5,000"
+                    className="pl-7 bg-secondary border-border focus:border-accent"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm text-muted-foreground">Length (months)</Label>
+                <Select
+                  value={form.contract_length_months}
+                  onValueChange={(v) => set("contract_length_months", v)}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 month</SelectItem>
+                    <SelectItem value="3">3 months</SelectItem>
+                    <SelectItem value="6">6 months</SelectItem>
+                    <SelectItem value="12">12 months</SelectItem>
+                    <SelectItem value="24">24 months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm text-muted-foreground">Payment Date</Label>
+                <Input
+                  type="date"
+                  value={form.payment_date}
+                  onChange={(e) => set("payment_date", e.target.value)}
+                  className="bg-secondary border-border focus:border-accent"
+                />
+              </div>
             </div>
           </div>
 
