@@ -10,8 +10,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2, Search, Plus, MapPin, Mail, Phone, DollarSign,
   Calendar, ExternalLink, Star, TrendingUp, TrendingDown, Filter,
+  Pencil, Trash2, MoreHorizontal,
 } from "lucide-react";
-import { useCustomers } from "@/lib/hooks/use-customers";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useCustomers, useDeleteCustomer } from "@/lib/hooks/use-customers";
+import { CustomerForm } from "./customer-form";
 
 const tierColors: Record<string, string> = {
   Enterprise: "bg-accent/20 text-accent border-accent/30",
@@ -30,12 +49,33 @@ function formatLastContact(ts: string | null): string {
   return `${Math.floor(days / 7)} weeks ago`;
 }
 
+type MappedCustomer = {
+  id: string;
+  name: string;
+  industry: string;
+  tier: string;
+  location: string;
+  contact: string;
+  email: string;
+  phone: string;
+  totalRevenue: number;
+  activeDeals: number;
+  healthScore: number;
+  trend: string;
+  lastContact: string;
+};
+
 export function CustomersSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
-  const { data: rawCustomers, isLoading } = useCustomers();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<MappedCustomer | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MappedCustomer | null>(null);
 
-  const customers = (rawCustomers ?? []).map((c: {
+  const { data: rawCustomers, isLoading } = useCustomers();
+  const deleteCustomer = useDeleteCustomer();
+
+  const customers: MappedCustomer[] = (rawCustomers ?? []).map((c: {
     id: string; name: string; industry?: string; tier: string;
     location?: string; contact_name?: string; email?: string; phone?: string;
     health_score?: number; trend?: string; last_contact_at?: string;
@@ -49,8 +89,8 @@ export function CustomersSection() {
     contact: c.contact_name ?? "—",
     email: c.email ?? "—",
     phone: c.phone ?? "—",
-    totalRevenue: (c.deals ?? []).reduce((s: number, d: { value: number }) => s + Number(d.value), 0),
-    activeDeals: (c.deals ?? []).filter((d: { stage: string }) => !["closed_won","closed_lost"].includes(d.stage)).length,
+    totalRevenue: (c.deals ?? []).reduce((s, d) => s + Number(d.value), 0),
+    activeDeals: (c.deals ?? []).filter((d) => !["closed_won", "closed_lost"].includes(d.stage)).length,
     healthScore: c.health_score ?? 0,
     trend: c.trend ?? "stable",
     lastContact: formatLastContact(c.last_contact_at ?? null),
@@ -69,13 +109,30 @@ export function CustomersSection() {
     ? Math.round(customers.reduce((acc, c) => acc + c.healthScore, 0) / customers.length)
     : 0;
 
+  function openAdd() {
+    setEditTarget(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(c: MappedCustomer) {
+    setEditTarget(c);
+    setFormOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await deleteCustomer.mutateAsync(deleteTarget.id);
+    setDeleteTarget(null);
+  }
+
   return (
     <div className="space-y-6">
+      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)
           : [
-              { label: "Total Customers", value: customers.length.toString(), icon: Building2, color: "text-foreground" },
+              { label: "Total Clients", value: customers.length.toString(), icon: Building2, color: "text-foreground" },
               { label: "Total Revenue", value: `$${(totalRevenue / 1000000).toFixed(2)}M`, icon: DollarSign, color: "text-accent" },
               { label: "Avg Health Score", value: `${avgHealthScore}%`, icon: Star, color: "text-chart-3" },
               { label: "Active Deals", value: customers.reduce((acc, c) => acc + c.activeDeals, 0).toString(), icon: TrendingUp, color: "text-chart-1" },
@@ -94,12 +151,13 @@ export function CustomersSection() {
             ))}
       </div>
 
+      {/* Search + filters */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search customers..."
+              placeholder="Search clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 w-[280px] bg-secondary border-border focus:border-accent"
@@ -120,15 +178,28 @@ export function CustomersSection() {
             ))}
           </div>
         </div>
-        <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+        <Button onClick={openAdd} className="bg-accent hover:bg-accent/90 text-accent-foreground">
           <Plus className="w-4 h-4 mr-2" />
-          Add Customer
+          Add Client
         </Button>
       </div>
 
+      {/* Client cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)
+          : filteredCustomers.length === 0
+          ? (
+            <div className="col-span-2 flex flex-col items-center justify-center py-16 text-center">
+              <Building2 className="w-12 h-12 text-muted-foreground/30 mb-4" />
+              <p className="text-muted-foreground font-medium">No clients yet</p>
+              <p className="text-sm text-muted-foreground/60 mt-1 mb-4">Add your first advertising client to get started</p>
+              <Button onClick={openAdd} className="bg-accent text-accent-foreground hover:bg-accent/90">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Client
+              </Button>
+            </div>
+          )
           : filteredCustomers.map((customer, index) => (
               <Card
                 key={customer.id}
@@ -136,6 +207,7 @@ export function CustomersSection() {
                 style={{ animationDelay: `${index * 75}ms` }}
               >
                 <CardContent className="p-5">
+                  {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-12 h-12 bg-secondary">
@@ -150,24 +222,48 @@ export function CustomersSection() {
                         <p className="text-sm text-muted-foreground">{customer.industry}</p>
                       </div>
                     </div>
-                    <Badge className={`${tierColors[customer.tier] ?? tierColors.Starter} border`}>
-                      {customer.tier}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${tierColors[customer.tier] ?? tierColors.Starter} border`}>
+                        {customer.tier}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-all duration-200">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onClick={() => openEdit(customer)}>
+                            <Pencil className="w-3.5 h-3.5 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(customer)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
 
+                  {/* Details grid */}
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <MapPin className="w-3.5 h-3.5" />
-                        {customer.location}
+                        <MapPin className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{customer.location}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Mail className="w-3.5 h-3.5" />
-                        {customer.email}
+                        <Mail className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{customer.email}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="w-3.5 h-3.5" />
-                        {customer.phone}
+                        <Phone className="w-3.5 h-3.5 shrink-0" />
+                        <span>{customer.phone}</span>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -186,6 +282,7 @@ export function CustomersSection() {
                     </div>
                   </div>
 
+                  {/* Health score */}
                   <div className="flex items-center justify-between pt-4 border-t border-border">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Health Score</span>
@@ -215,6 +312,7 @@ export function CustomersSection() {
                     </div>
                   </div>
 
+                  {/* Actions */}
                   <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border">
                     <Button variant="outline" size="sm" className="flex-1 bg-transparent">
                       <Calendar className="w-3.5 h-3.5 mr-1.5" />
@@ -224,7 +322,7 @@ export function CustomersSection() {
                       <Mail className="w-3.5 h-3.5 mr-1.5" />
                       Email
                     </Button>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(customer)}>
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   </div>
@@ -232,6 +330,34 @@ export function CustomersSection() {
               </Card>
             ))}
       </div>
+
+      {/* Add / Edit form */}
+      <CustomerForm
+        open={formOpen}
+        onClose={() => { setFormOpen(false); setEditTarget(null); }}
+        editCustomer={editTarget}
+      />
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this client and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
