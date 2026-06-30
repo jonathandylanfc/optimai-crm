@@ -1,8 +1,10 @@
 "use client";
 
-import React from "react"
+import React from "react";
 
 import { useState, useEffect } from "react";
+import { useReports } from "@/lib/hooks/use-reports";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   FileText,
@@ -50,7 +52,7 @@ const sourceData = [
   { name: "Social", value: 5, color: "oklch(0.7 0.15 300)" },
 ];
 
-const reports = [
+const FALLBACK_REPORTS = [
   { id: "1", name: "Monthly Sales Summary", type: "Sales", date: "Jan 20, 2024", status: "ready" },
   { id: "2", name: "Q4 Performance Analysis", type: "Performance", date: "Jan 18, 2024", status: "ready" },
   { id: "3", name: "Pipeline Forecast", type: "Forecast", date: "Jan 15, 2024", status: "ready" },
@@ -91,11 +93,22 @@ function ReportCard({
 
 export function ReportsSection() {
   const [chartsLoaded, setChartsLoaded] = useState(false);
+  const { data: reportsData, isLoading } = useReports();
 
   useEffect(() => {
     const timer = setTimeout(() => setChartsLoaded(true), 400);
     return () => clearTimeout(timer);
   }, []);
+
+  const reports = reportsData?.reports && reportsData.reports.length > 0
+    ? reportsData.reports.map((r: { id: string; name: string; type: string; status: string; created_at: string }) => ({
+        id: r.id,
+        name: r.name,
+        type: r.type,
+        date: new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        status: r.status,
+      }))
+    : FALLBACK_REPORTS;
 
   return (
     <div className="space-y-6">
@@ -244,7 +257,14 @@ export function ReportsSection() {
           </button>
         </div>
         <div className="divide-y divide-border">
-          {reports.map((report, index) => (
+          {isLoading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="px-5 py-4">
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ))
+            : null}
+          {!isLoading && reports.map((report, index) => (
             <div
               key={report.id}
               className="flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors duration-150 cursor-pointer animate-in fade-in slide-in-from-left-2"

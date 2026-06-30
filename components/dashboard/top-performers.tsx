@@ -10,7 +10,7 @@ const performers = [
   { name: "Lisa Park", deals: 14, revenue: "$267,100", change: "+9%", rank: 5 },
 ];
 
-export function TopPerformers() {
+export function TopPerformers({ isLoading }: { isLoading?: boolean }) {
   return (
     <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300">
       <div className="flex items-center justify-between mb-5">

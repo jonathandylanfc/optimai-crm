@@ -62,7 +62,25 @@ const statusConfig = {
   },
 };
 
-export function RecentDeals() {
+type DealRow = { id: string; name?: string; value: number; stage: string; created_at: string; customers?: { name?: string; company?: string } };
+
+function stageToStatus(stage: string): keyof typeof statusConfig {
+  if (stage === "closed_won") return "won";
+  if (stage === "closed_lost") return "lost";
+  return "pending";
+}
+
+export function RecentDeals({ data: liveData, isLoading }: { data?: DealRow[]; isLoading?: boolean }) {
+  const displayDeals = liveData && liveData.length > 0
+    ? liveData.slice(0, 5).map((d) => ({
+        company: d.customers?.company ?? d.customers?.name ?? d.name ?? "Unknown",
+        value: `$${d.value.toLocaleString()}`,
+        status: stageToStatus(d.stage),
+        date: new Date(d.created_at).toLocaleDateString(),
+        rep: "—",
+      }))
+    : deals;
+
   return (
     <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
       <div className="flex items-center justify-between mb-5">
@@ -77,36 +95,38 @@ export function RecentDeals() {
       </div>
 
       <div className="space-y-3">
-        {deals.map((deal, index) => {
-          const status = statusConfig[deal.status as keyof typeof statusConfig];
-          const StatusIcon = status.icon;
-
-          return (
-            <div
-              key={deal.company}
-              className="group flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-all duration-200 cursor-pointer animate-in fade-in slide-in-from-left-2"
-              style={{ animationDelay: `${(index + 3) * 100}ms`, animationFillMode: "both" }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-sm font-semibold text-muted-foreground group-hover:bg-accent/10 group-hover:text-accent transition-all duration-200">
-                  {deal.company.charAt(0)}
+        {isLoading
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-14 rounded-lg bg-secondary/30 animate-pulse" />
+            ))
+          : displayDeals.map((deal, index) => {
+              const status = statusConfig[deal.status as keyof typeof statusConfig];
+              const StatusIcon = status.icon;
+              return (
+                <div
+                  key={index}
+                  className="group flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-all duration-200 cursor-pointer animate-in fade-in slide-in-from-left-2"
+                  style={{ animationDelay: `${(index + 3) * 100}ms`, animationFillMode: "both" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-sm font-semibold text-muted-foreground group-hover:bg-accent/10 group-hover:text-accent transition-all duration-200">
+                      {deal.company.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{deal.company}</p>
+                      <p className="text-xs text-muted-foreground">{deal.rep} • {deal.date}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-foreground">{deal.value}</span>
+                    <div className={cn("flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium", status.bg, status.color)}>
+                      <StatusIcon className="w-3 h-3" />
+                      {status.label}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">{deal.company}</p>
-                  <p className="text-xs text-muted-foreground">{deal.rep} • {deal.date}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-foreground">{deal.value}</span>
-                <div className={cn("flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium", status.bg, status.color)}>
-                  <StatusIcon className="w-3 h-3" />
-                  {status.label}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
       </div>
     </div>
   );

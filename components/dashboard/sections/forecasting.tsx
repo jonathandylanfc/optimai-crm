@@ -15,8 +15,6 @@ import {
   TrendingUp,
   TrendingDown,
   Target,
-  Calendar,
-  DollarSign,
   AlertTriangle,
   CheckCircle2,
   ArrowRight,
@@ -32,11 +30,12 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Cell,
   Legend,
 } from "recharts";
+import { useForecasting } from "@/lib/hooks/use-forecasting";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const forecastData = [
+const FALLBACK_FORECAST = [
   { month: "Jan", actual: 420000, forecast: 400000, target: 450000 },
   { month: "Feb", actual: 480000, forecast: 460000, target: 450000 },
   { month: "Mar", actual: 510000, forecast: 500000, target: 500000 },
@@ -93,15 +92,20 @@ const scenarios = [
 
 export function ForecastingSection() {
   const [timeframe, setTimeframe] = useState("quarterly");
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: rawForecast, isLoading, refetch } = useForecasting();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const forecastData = rawForecast && rawForecast.length > 0
+    ? rawForecast.map((r: { month: string; actual?: number | null; forecast?: number | null; target?: number | null }) => ({
+        month: r.month,
+        actual: r.actual != null ? Number(r.actual) : null,
+        forecast: r.forecast != null ? Number(r.forecast) : null,
+        target: r.target != null ? Number(r.target) : null,
+      }))
+    : FALLBACK_FORECAST;
 
-  const currentQuarterTarget = 1800000;
-  const currentQuarterForecast = 2100000;
+  const latestForecast = forecastData[forecastData.length - 1];
+  const currentQuarterForecast = latestForecast?.forecast ?? 2100000;
+  const currentQuarterTarget = latestForecast?.target ?? 1800000;
   const forecastAccuracy = 94;
   const pipelineCoverage = 3.2;
 
@@ -126,7 +130,7 @@ export function ForecastingSection() {
               <SelectItem value="annual">Annual</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -171,10 +175,7 @@ export function ForecastingSection() {
         ].map((stat, index) => (
           <Card
             key={stat.label}
-            className={`border-border bg-card transition-all duration-500 ${
-              isLoading ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
-            }`}
-            style={{ transitionDelay: `${index * 100}ms` }}
+            className="border-border bg-card"
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
@@ -233,7 +234,8 @@ export function ForecastingSection() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          {isLoading ? <Skeleton className="h-[300px] w-full" /> : null}
+          <div className={`h-[300px] ${isLoading ? "hidden" : ""}`}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={forecastData}>
                 <defs>

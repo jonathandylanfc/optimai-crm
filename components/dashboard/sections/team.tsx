@@ -4,46 +4,26 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Trophy, Target, TrendingUp, TrendingDown, Mail, Phone, MoreHorizontal } from "lucide-react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
+import { useTeam } from "@/lib/hooks/use-team";
+import { Skeleton } from "@/components/ui/skeleton";
 
-interface TeamMember {
+interface MemberRow {
   id: string;
   name: string;
   role: string;
   email: string;
-  avatar: string;
-  deals: number;
-  revenue: number;
+  avatar?: string | null;
   quota: number;
-  change: number;
-  rank: number;
+  rank?: number | null;
+  deals?: { id: string; value: number; stage: string }[];
 }
 
-const teamMembers: TeamMember[] = [
-  { id: "1", name: "Sarah Chen", role: "Senior AE", email: "sarah@company.com", avatar: "SC", deals: 24, revenue: 487500, quota: 450000, change: 15, rank: 1 },
-  { id: "2", name: "Mike Johnson", role: "Account Executive", email: "mike@company.com", avatar: "MJ", deals: 19, revenue: 356200, quota: 400000, change: 8, rank: 2 },
-  { id: "3", name: "Emily Davis", role: "Senior AE", email: "emily@company.com", avatar: "ED", deals: 17, revenue: 312800, quota: 350000, change: 12, rank: 3 },
-  { id: "4", name: "James Wilson", role: "Account Executive", email: "james@company.com", avatar: "JW", deals: 15, revenue: 289400, quota: 350000, change: -5, rank: 4 },
-  { id: "5", name: "Lisa Park", role: "Account Executive", email: "lisa@company.com", avatar: "LP", deals: 14, revenue: 267100, quota: 300000, change: 9, rank: 5 },
-];
-
-const performanceData = [
-  { name: "Sarah", revenue: 487, quota: 450 },
-  { name: "Mike", revenue: 356, quota: 400 },
-  { name: "Emily", revenue: 312, quota: 350 },
-  { name: "James", revenue: 289, quota: 350 },
-  { name: "Lisa", revenue: 267, quota: 300 },
-];
-
-function TeamMemberCard({ member, index }: { member: TeamMember; index: number }) {
-  const quotaPercentage = (member.revenue / member.quota) * 100;
+function TeamMemberCard({ member, index }: { member: MemberRow; index: number }) {
+  const revenue = (member.deals ?? []).reduce((s, d) => s + Number(d.value), 0);
+  const dealsCount = (member.deals ?? []).length;
+  const quotaPercentage = member.quota > 0 ? (revenue / member.quota) * 100 : 0;
   const isAboveQuota = quotaPercentage >= 100;
 
   return (
@@ -55,9 +35,9 @@ function TeamMemberCard({ member, index }: { member: TeamMember; index: number }
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent/80 to-chart-1 flex items-center justify-center text-sm font-bold text-accent-foreground">
-              {member.avatar}
+              {member.avatar ?? member.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
             </div>
-            {member.rank <= 3 && (
+            {(member.rank ?? 99) <= 3 && (
               <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-warning flex items-center justify-center">
                 <Trophy className="w-3 h-3 text-background" />
               </div>
@@ -73,19 +53,17 @@ function TeamMemberCard({ member, index }: { member: TeamMember; index: number }
         </button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <p className="text-xs text-muted-foreground mb-1">Revenue</p>
-          <p className="text-lg font-bold text-foreground">${(member.revenue / 1000).toFixed(0)}k</p>
+          <p className="text-lg font-bold text-foreground">${(revenue / 1000).toFixed(0)}k</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-1">Deals Closed</p>
-          <p className="text-lg font-bold text-foreground">{member.deals}</p>
+          <p className="text-lg font-bold text-foreground">{dealsCount}</p>
         </div>
       </div>
 
-      {/* Quota progress */}
       <div className="mb-4">
         <div className="flex items-center justify-between text-xs mb-1.5">
           <span className="text-muted-foreground">Quota Attainment</span>
@@ -101,7 +79,6 @@ function TeamMemberCard({ member, index }: { member: TeamMember; index: number }
         </div>
       </div>
 
-      {/* Change indicator */}
       <div className="flex items-center justify-between pt-4 border-t border-border">
         <div className="flex items-center gap-2">
           <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors">
@@ -111,9 +88,9 @@ function TeamMemberCard({ member, index }: { member: TeamMember; index: number }
             <Phone className="w-4 h-4" />
           </button>
         </div>
-        <div className={cn("flex items-center gap-1 text-sm font-medium", member.change >= 0 ? "text-success" : "text-destructive")}>
-          {member.change >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-          {member.change >= 0 ? "+" : ""}{member.change}%
+        <div className={cn("flex items-center gap-1 text-sm font-medium", isAboveQuota ? "text-success" : "text-destructive")}>
+          {isAboveQuota ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+          {quotaPercentage.toFixed(0)}%
         </div>
       </div>
     </div>
@@ -122,50 +99,51 @@ function TeamMemberCard({ member, index }: { member: TeamMember; index: number }
 
 export function TeamSection() {
   const [chartLoaded, setChartLoaded] = useState(false);
+  const { data: rawTeam, isLoading } = useTeam();
 
   useEffect(() => {
     const timer = setTimeout(() => setChartLoaded(true), 400);
     return () => clearTimeout(timer);
   }, []);
 
-  const totalRevenue = teamMembers.reduce((acc, m) => acc + m.revenue, 0);
-  const totalDeals = teamMembers.reduce((acc, m) => acc + m.deals, 0);
-  const avgQuotaAttainment = teamMembers.reduce((acc, m) => acc + (m.revenue / m.quota) * 100, 0) / teamMembers.length;
+  const team: MemberRow[] = rawTeam ?? [];
+
+  const totalRevenue = team.reduce((acc, m) => acc + (m.deals ?? []).reduce((s, d) => s + Number(d.value), 0), 0);
+  const totalDeals = team.reduce((acc, m) => acc + (m.deals ?? []).length, 0);
+  const avgQuota = team.length
+    ? team.reduce((acc, m) => {
+        const rev = (m.deals ?? []).reduce((s, d) => s + Number(d.value), 0);
+        return acc + (m.quota > 0 ? (rev / m.quota) * 100 : 0);
+      }, 0) / team.length
+    : 0;
+
+  const performanceData = team.map((m) => {
+    const rev = (m.deals ?? []).reduce((s, d) => s + Number(d.value), 0);
+    return { name: m.name.split(" ")[0], revenue: Math.round(rev / 1000), quota: Math.round(Number(m.quota) / 1000) };
+  });
 
   return (
     <div className="space-y-6">
-      {/* Header stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-              <Target className="w-5 h-5 text-accent" />
-            </div>
-            <span className="text-sm text-muted-foreground">Team Revenue</span>
-          </div>
-          <p className="text-2xl font-bold text-foreground">${(totalRevenue / 1000000).toFixed(2)}M</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-chart-1/10 flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-chart-1" />
-            </div>
-            <span className="text-sm text-muted-foreground">Total Deals</span>
-          </div>
-          <p className="text-2xl font-bold text-foreground">{totalDeals}</p>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-success" />
-            </div>
-            <span className="text-sm text-muted-foreground">Avg Quota Attainment</span>
-          </div>
-          <p className="text-2xl font-bold text-foreground">{avgQuotaAttainment.toFixed(0)}%</p>
-        </div>
+        {isLoading
+          ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          : [
+              { label: "Team Revenue", value: `$${(totalRevenue / 1000000).toFixed(2)}M`, icon: Target, color: "text-accent", bg: "bg-accent/10" },
+              { label: "Total Deals", value: String(totalDeals), icon: TrendingUp, color: "text-chart-1", bg: "bg-chart-1/10" },
+              { label: "Avg Quota Attainment", value: `${avgQuota.toFixed(0)}%`, icon: Trophy, color: "text-success", bg: "bg-success/10" },
+            ].map((stat, i) => (
+              <div key={stat.label} className={`bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500`} style={{ animationDelay: `${i * 100}ms` }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center`}>
+                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                  </div>
+                  <span className="text-sm text-muted-foreground">{stat.label}</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+              </div>
+            ))}
       </div>
 
-      {/* Performance chart */}
       <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -183,49 +161,37 @@ export function TeamSection() {
             </div>
           </div>
         </div>
-        <div className={`h-[250px] transition-opacity duration-700 ${chartLoaded ? 'opacity-100' : 'opacity-0'}`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={performanceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.005 260)" vertical={false} />
-              <XAxis
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "oklch(0.65 0 0)", fontSize: 12 }}
-                dy={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: "oklch(0.65 0 0)", fontSize: 12 }}
-                tickFormatter={(value) => `$${value}k`}
-                dx={-10}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "oklch(0.12 0.005 260)",
-                  border: "1px solid oklch(0.22 0.005 260)",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-                labelStyle={{ color: "oklch(0.95 0 0)", fontWeight: 600 }}
-                itemStyle={{ color: "oklch(0.65 0 0)" }}
-                formatter={(value: number) => [`$${value}k`, ""]}
-              />
-              <Bar dataKey="quota" fill="oklch(0.65 0 0 / 0.2)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="revenue" fill="oklch(0.7 0.18 220)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {isLoading
+          ? <Skeleton className="h-[250px] w-full" />
+          : (
+            <div className={`h-[250px] transition-opacity duration-700 ${chartLoaded ? "opacity-100" : "opacity-0"}`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={performanceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.005 260)" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "oklch(0.65 0 0)", fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "oklch(0.65 0 0)", fontSize: 12 }} tickFormatter={(v) => `$${v}k`} dx={-10} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "oklch(0.12 0.005 260)", border: "1px solid oklch(0.22 0.005 260)", borderRadius: "8px", fontSize: "12px" }}
+                    labelStyle={{ color: "oklch(0.95 0 0)", fontWeight: 600 }}
+                    itemStyle={{ color: "oklch(0.65 0 0)" }}
+                    formatter={(value: number) => [`$${value}k`, ""]}
+                  />
+                  <Bar dataKey="quota" fill="oklch(0.65 0 0 / 0.2)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" fill="oklch(0.7 0.18 220)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
       </div>
 
-      {/* Team members grid */}
       <div>
         <h3 className="text-base font-semibold text-foreground mb-4">Team Members</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teamMembers.map((member, index) => (
-            <TeamMemberCard key={member.id} member={member} index={index} />
-          ))}
+          {isLoading
+            ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)
+            : team.map((member, index) => (
+                <TeamMemberCard key={member.id} member={member} index={index} />
+              ))}
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const data = [
+const FALLBACK_DATA = [
   { month: "Jan", revenue: 186000, target: 180000 },
   { month: "Feb", revenue: 205000, target: 190000 },
   { month: "Mar", revenue: 237000, target: 200000 },
@@ -26,8 +26,18 @@ const data = [
   { month: "Dec", revenue: 547000, target: 380000 },
 ];
 
-export function RevenueChart() {
+type RevenueRow = { period_date: string; revenue: number; target?: number };
+
+export function RevenueChart({ data: liveData, isLoading }: { data?: RevenueRow[]; isLoading?: boolean }) {
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const data = liveData && liveData.length > 0
+    ? liveData.map((r) => ({
+        month: new Date(r.period_date).toLocaleString("default", { month: "short" }),
+        revenue: r.revenue,
+        target: r.target ?? r.revenue * 0.9,
+      }))
+    : FALLBACK_DATA;
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoaded(true), 300);
