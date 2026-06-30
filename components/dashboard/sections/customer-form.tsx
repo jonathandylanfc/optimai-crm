@@ -117,7 +117,7 @@ export function CustomerForm({ open, onClose, editCustomer }: CustomerFormProps)
       } else {
         await createCustomer(payload);
       }
-      qc.invalidateQueries({ queryKey: ["customers"] });
+      await qc.refetchQueries({ queryKey: ["customers"] });
       onClose();
     });
   }

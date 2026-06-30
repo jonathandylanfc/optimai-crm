@@ -133,7 +133,7 @@ export function CustomersSection() {
     if (!deleteTarget) return;
     startDeleteTransition(async () => {
       await deleteCustomerAction(deleteTarget.id);
-      qc.invalidateQueries({ queryKey: ["customers"] });
+      await qc.refetchQueries({ queryKey: ["customers"] });
       setDeleteTarget(null);
     });
   }
