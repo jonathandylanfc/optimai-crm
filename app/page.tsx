@@ -16,9 +16,20 @@ import { ProductsSection } from "@/components/dashboard/sections/products";
 
 export type Section = "overview" | "pipeline" | "deals" | "orders" | "products" | "customers" | "team" | "forecasting" | "reports" | "settings";
 
+const validSections: Section[] = ["overview", "pipeline", "deals", "orders", "products", "customers", "team", "forecasting", "reports", "settings"];
+
 export default function Dashboard() {
-  const [activeSection, setActiveSection] = useState<Section>("overview");
+  const [activeSection, setActiveSection] = useState<Section>(() => {
+    if (typeof window === "undefined") return "overview";
+    const hash = window.location.hash.slice(1) as Section;
+    return validSections.includes(hash) ? hash : "overview";
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  function handleSectionChange(section: Section) {
+    setActiveSection(section);
+    window.location.hash = section;
+  }
 
   const renderSection = () => {
     switch (activeSection) {
@@ -51,7 +62,7 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-background">
       <Sidebar
         activeSection={activeSection}
-        onSectionChange={setActiveSection}
+        onSectionChange={handleSectionChange}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
       />
