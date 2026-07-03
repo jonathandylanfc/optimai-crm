@@ -15,6 +15,7 @@ import {
   Building2,
   TrendingUp,
   Settings,
+  ShoppingCart,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ const navItems: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "pipeline", label: "Pipeline", icon: GitBranch },
   { id: "deals", label: "Deals", icon: Handshake },
   { id: "customers", label: "Customers", icon: Building2 },
+  { id: "orders", label: "Orders", icon: ShoppingCart },
   { id: "team", label: "Team", icon: Users },
   { id: "forecasting", label: "Forecasting", icon: TrendingUp },
   { id: "reports", label: "Reports", icon: BarChart3 },
