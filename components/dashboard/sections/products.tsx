@@ -41,7 +41,7 @@ import {
 } from "@/lib/hooks/use-ca-products";
 import type { CAProduct, CAProductPayload } from "@/app/actions/ca-products";
 
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "optimai";
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "v4h2yok3";
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "v4h2yok3";
 
 async function uploadToCloudinary(file: File): Promise<string> {
