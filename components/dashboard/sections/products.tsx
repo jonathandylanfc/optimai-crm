@@ -324,9 +324,13 @@ export function ProductsSection() {
       <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
         <Package className="w-10 h-10 text-muted-foreground/30" />
         <p className="text-muted-foreground font-medium">Could not connect to the car accessories store</p>
+        <p className="text-sm text-destructive/80 max-w-sm font-mono bg-secondary px-3 py-1.5 rounded">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </p>
         <p className="text-sm text-muted-foreground/60 max-w-sm">
-          Make sure <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_URL</code> and{" "}
-          <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_API_SECRET</code> are set in your CRM environment.
+          Make sure <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_URL</code>,{" "}
+          <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_API_SECRET</code>, and{" "}
+          <code className="bg-secondary px-1 rounded">INTERNAL_API_SECRET</code> (on the car accessories app) are all set and matching.
         </p>
       </div>
     );
