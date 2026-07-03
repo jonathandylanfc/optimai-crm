@@ -52,8 +52,11 @@ async function uploadToCloudinary(file: File): Promise<string> {
     method: "POST",
     body: fd,
   });
-  if (!res.ok) throw new Error("Image upload failed");
   const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.error?.message ?? `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
   return data.secure_url as string;
 }
 
@@ -74,8 +77,8 @@ function ImageUploader({
     try {
       const url = await uploadToCloudinary(file);
       onChange(url);
-    } catch {
-      setError("Upload failed — check your Cloudinary settings.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
     }
