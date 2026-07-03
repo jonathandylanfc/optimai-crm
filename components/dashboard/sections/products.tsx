@@ -42,7 +42,7 @@ import {
 import type { CAProduct, CAProductPayload } from "@/app/actions/ca-products";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "v4h2yok3";
-const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "v4h2yok3";
+const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "OPTIMAI";
 
 async function uploadToCloudinary(file: File): Promise<string> {
   const fd = new FormData();
