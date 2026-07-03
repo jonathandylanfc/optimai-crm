@@ -11,8 +11,9 @@ import { TeamSection } from "@/components/dashboard/sections/team";
 import { ForecastingSection } from "@/components/dashboard/sections/forecasting";
 import { ReportsSection } from "@/components/dashboard/sections/reports";
 import { SettingsSection } from "@/components/dashboard/sections/settings";
+import { OrdersSection } from "@/components/dashboard/sections/orders";
 
-export type Section = "overview" | "pipeline" | "deals" | "customers" | "team" | "forecasting" | "reports" | "settings";
+export type Section = "overview" | "pipeline" | "deals" | "customers" | "orders" | "team" | "forecasting" | "reports" | "settings";
 
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState<Section>("overview");
@@ -28,6 +29,8 @@ export default function Dashboard() {
         return <DealsSection />;
       case "customers":
         return <CustomersSection />;
+      case "orders":
+        return <OrdersSection />;
       case "team":
         return <TeamSection />;
       case "forecasting":
