@@ -172,8 +172,9 @@ function ProductForm({
 
   // Reset image when dialog opens with a different product
   const prevIdRef = useRef<number | null>(null);
-  if (editProduct?.id !== prevIdRef.current) {
-    prevIdRef.current = editProduct?.id ?? null;
+  const currentId = editProduct?.id ?? null;
+  if (currentId !== prevIdRef.current) {
+    prevIdRef.current = currentId;
     if (imageUrl !== (editProduct?.imageUrl ?? "")) {
       setImageUrl(editProduct?.imageUrl ?? "");
     }
