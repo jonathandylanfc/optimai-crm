@@ -2,17 +2,24 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchCAProducts,
   createCAProduct,
   updateCAProduct,
   deleteCAProduct,
   type CAProductPayload,
+  type CAProduct,
 } from "@/app/actions/ca-products";
 
 export function useCAProducts() {
   return useQuery({
     queryKey: ["ca-products"],
-    queryFn: fetchCAProducts,
+    queryFn: async (): Promise<CAProduct[]> => {
+      const res = await fetch("/api/ca-products");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Failed to load products (${res.status})`);
+      }
+      return res.json();
+    },
   });
 }
 

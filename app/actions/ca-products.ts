@@ -1,6 +1,6 @@
 "use server";
 
-const BASE_URL = process.env.CAR_ACCESSORIES_URL ?? "";
+const BASE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
 const SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
 
 function headers() {
