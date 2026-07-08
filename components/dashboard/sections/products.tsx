@@ -295,6 +295,7 @@ export function ProductsSection() {
 
   const { data: products, isLoading, error } = useCAProducts();
   const deleteProduct = useDeleteCAProduct();
+  const updateProduct = useUpdateCAProduct();
   const [isDeleting, startDeleteTransition] = useTransition();
 
   const filtered = (products ?? []).filter((p) =>
@@ -434,17 +435,22 @@ export function ProductsSection() {
                     </Badge>
                   )}
                 </div>
-                {/* Actions overlay */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Actions — always visible */}
+                <div className="absolute top-2 right-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="w-7 h-7 flex items-center justify-center rounded-lg bg-background/80 text-foreground hover:bg-background">
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem onClick={() => openEdit(product)}>
                         <Pencil className="w-3.5 h-3.5 mr-2" />Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateProduct.mutate({ id: product.id, payload: { active: !product.active } })}>
+                        {product.active
+                          ? <><EyeOff className="w-3.5 h-3.5 mr-2" />Hide</>
+                          : <><Eye className="w-3.5 h-3.5 mr-2" />Publish</>}
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
