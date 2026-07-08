@@ -2,11 +2,12 @@
 
 import { cn } from "@/lib/utils";
 import type { Section } from "@/app/page";
-import { Bell, Search, Calendar } from "lucide-react";
+import { Bell, Search, Calendar, Menu } from "lucide-react";
 import { useState } from "react";
 
 interface HeaderProps {
   activeSection: Section;
+  onMobileMenuToggle: () => void;
 }
 
 const sectionTitles: Record<Section, string> = {
@@ -22,12 +23,19 @@ const sectionTitles: Record<Section, string> = {
   settings: "Settings",
 };
 
-export function Header({ activeSection }: HeaderProps) {
+export function Header({ activeSection, onMobileMenuToggle }: HeaderProps) {
   const [searchFocused, setSearchFocused] = useState(false);
 
   return (
-    <header className="h-16 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-6">
-      <div className="flex items-center gap-6">
+    <header className="h-16 border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between px-4 lg:px-6">
+      <div className="flex items-center gap-3 lg:gap-6">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMobileMenuToggle}
+          className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
         <h1 className="text-xl font-semibold text-foreground">
           {sectionTitles[activeSection]}
         </h1>

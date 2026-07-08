@@ -24,6 +24,8 @@ interface SidebarProps {
   onSectionChange: (section: Section) => void;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
+  mobileOpen: boolean;
+  onMobileOpenChange: (open: boolean) => void;
 }
 
 const navItems: { id: Section; label: string; icon: React.ElementType }[] = [
@@ -44,12 +46,27 @@ export function Sidebar({
   onSectionChange,
   collapsed,
   onCollapsedChange,
+  mobileOpen,
+  onMobileOpenChange,
 }: SidebarProps) {
   return (
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+          onClick={() => onMobileOpenChange(false)}
+        />
+      )}
     <aside
       className={cn(
         "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-out flex flex-col",
-        collapsed ? "w-[72px]" : "w-[260px]"
+        // Desktop: collapsed/expanded width
+        "lg:translate-x-0",
+        collapsed ? "lg:w-[72px]" : "lg:w-[260px]",
+        // Mobile: full sidebar, slides in/out
+        "w-[260px]",
+        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}
     >
       {/* Logo */}
@@ -78,7 +95,7 @@ export function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => onSectionChange(item.id)}
+              onClick={() => { onSectionChange(item.id); onMobileOpenChange(false); }}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative",
                 isActive
@@ -112,8 +129,8 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Collapse button */}
-      <div className="p-3 border-t border-sidebar-border">
+      {/* Collapse button — desktop only */}
+      <div className="hidden lg:block p-3 border-t border-sidebar-border">
         <button
           onClick={() => onCollapsedChange(!collapsed)}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200"
@@ -129,5 +146,6 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+    </>
   );
 }

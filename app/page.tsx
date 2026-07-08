@@ -25,6 +25,7 @@ export default function Dashboard() {
     return validSections.includes(hash) ? hash : "overview";
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   function handleSectionChange(section: Section) {
     setActiveSection(section);
@@ -65,13 +66,15 @@ export default function Dashboard() {
         onSectionChange={handleSectionChange}
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
+        mobileOpen={mobileSidebarOpen}
+        onMobileOpenChange={setMobileSidebarOpen}
       />
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ease-out ${
-          sidebarCollapsed ? "ml-[72px]" : "ml-[260px]"
+        className={`flex-1 flex flex-col transition-all duration-300 ease-out ml-0 ${
+          sidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
         }`}
       >
-        <Header activeSection={activeSection} />
+        <Header activeSection={activeSection} onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
         <main className="flex-1 p-6 overflow-auto">
           <div
             key={activeSection}
