@@ -17,6 +17,7 @@ export interface CAProduct {
   category: string;
   priceCents: number;
   imageUrl: string;
+  images: string[];
   stock: number;
   popular: boolean;
   active: boolean;
@@ -29,6 +30,7 @@ export interface CAProductPayload {
   category: string;
   priceCents: number;
   imageUrl: string;
+  images: string[];
   stock: number;
   popular: boolean;
   active: boolean;

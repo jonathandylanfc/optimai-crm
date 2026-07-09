@@ -60,23 +60,33 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
-function ImageUploader({
-  value,
-  onChange,
+function MultiImageUploader({
+  images,
+  coverUrl,
+  onImagesChange,
+  onCoverChange,
 }: {
-  value: string;
-  onChange: (url: string) => void;
+  images: string[];
+  coverUrl: string;
+  onImagesChange: (urls: string[]) => void;
+  onCoverChange: (url: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  async function handleFiles(files: FileList) {
     setError("");
     setUploading(true);
     try {
-      const url = await uploadToCloudinary(file);
-      onChange(url);
+      const uploads = await Promise.all(
+        Array.from(files)
+          .filter((f) => f.type.startsWith("image/"))
+          .map((f) => uploadToCloudinary(f))
+      );
+      const next = [...images, ...uploads];
+      onImagesChange(next);
+      if (!coverUrl && next.length > 0) onCoverChange(next[0]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -84,44 +94,73 @@ function ImageUploader({
     }
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file?.type.startsWith("image/")) handleFile(file);
+  function removeImage(url: string) {
+    const next = images.filter((u) => u !== url);
+    onImagesChange(next);
+    if (coverUrl === url) onCoverChange(next[0] ?? "");
   }
+
+  const allImages = images.length > 0 ? images : coverUrl ? [coverUrl] : [];
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-muted-foreground">Product Image</label>
-      {value ? (
-        <div className="relative group w-full h-40 rounded-lg overflow-hidden border border-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="Product" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => inputRef.current?.click()}
-              className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            >
-              <Upload className="w-3.5 h-3.5 mr-1.5" />
-              Replace
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => onChange("")}
-              className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            >
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+      <label className="text-sm font-medium text-muted-foreground">
+        Product Photos
+        <span className="ml-1.5 text-xs font-normal text-muted-foreground/60">— click a photo to set it as cover</span>
+      </label>
+
+      {allImages.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {allImages.map((url) => {
+            const isCover = url === coverUrl;
+            return (
+              <div
+                key={url}
+                className={`relative group aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                  isCover ? "border-accent" : "border-transparent hover:border-accent/40"
+                }`}
+                onClick={() => onCoverChange(url)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                {isCover && (
+                  <span className="absolute bottom-1 left-1 text-[10px] font-semibold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">
+                    Cover
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeImage(url); }}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Add more button */}
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-accent/50 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground bg-secondary/30 hover:bg-secondary/50 disabled:opacity-50"
+          >
+            {uploading ? (
+              <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Upload className="w-5 h-5" />
+                <span className="text-[10px] font-medium">Add</span>
+              </>
+            )}
+          </button>
         </div>
-      ) : (
+      )}
+
+      {allImages.length === 0 && (
         <div
-          onDrop={handleDrop}
+          onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => inputRef.current?.click()}
           className="w-full h-40 rounded-lg border-2 border-dashed border-border hover:border-accent/50 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer bg-secondary/30 hover:bg-secondary/50"
@@ -134,20 +173,21 @@ function ImageUploader({
           ) : (
             <>
               <ImageIcon className="w-8 h-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">Drop an image or click to upload</p>
+              <p className="text-sm text-muted-foreground">Drop images or click to upload</p>
             </>
           )}
         </div>
       )}
+
       {error && <p className="text-xs text-destructive">{error}</p>}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          if (e.target.files?.length) handleFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -167,16 +207,21 @@ function ProductForm({
   const createProduct = useCreateCAProduct();
   const updateProduct = useUpdateCAProduct();
   const [imageUrl, setImageUrl] = useState(editProduct?.imageUrl ?? "");
+  const [images, setImages] = useState<string[]>(editProduct?.images ?? []);
   const [isPending, startTransition] = useTransition();
   const isEditing = !!editProduct;
 
-  // Reset image when dialog opens with a different product
+  // Reset state when dialog opens with a different product
   const prevIdRef = useRef<number | null>(null);
   const currentId = editProduct?.id ?? null;
   if (currentId !== prevIdRef.current) {
     prevIdRef.current = currentId;
     if (imageUrl !== (editProduct?.imageUrl ?? "")) {
       setImageUrl(editProduct?.imageUrl ?? "");
+    }
+    const nextImages = editProduct?.images ?? [];
+    if (JSON.stringify(images) !== JSON.stringify(nextImages)) {
+      setImages(nextImages);
     }
   }
 
@@ -190,6 +235,7 @@ function ProductForm({
       category: fd.get("category") as string,
       priceCents: Math.round(priceDollars * 100),
       imageUrl,
+      images,
       stock: parseInt(fd.get("stock") as string, 10) || 0,
       popular: fd.get("popular") === "on",
       active: fd.get("active") === "on",
@@ -213,7 +259,12 @@ function ProductForm({
           <DialogTitle>{isEditing ? "Edit Product" : "New Product"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          <ImageUploader value={imageUrl} onChange={setImageUrl} />
+          <MultiImageUploader
+            images={images}
+            coverUrl={imageUrl}
+            onImagesChange={setImages}
+            onCoverChange={setImageUrl}
+          />
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Name *</label>
