@@ -16,6 +16,7 @@ const sectionTitles: Record<Section, string> = {
   deals: "Deals",
   orders: "Orders",
   products: "Products",
+  store: "Store Analytics",
   customers: "Customers",
   team: "Team Performance",
   forecasting: "Forecasting",
