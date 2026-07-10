@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductsSection } from "@/components/dashboard/sections/products";
 import {
   DollarSign,
   ShoppingCart,
@@ -89,6 +91,52 @@ function StatCard({
 }
 
 export function StoreAnalyticsSection() {
+  const [tab, setTab] = useState<"overview" | "products">("overview");
+
+  if (tab === "products") {
+    return (
+      <div className="space-y-4">
+        <SubTabs active={tab} onChange={setTab} />
+        <ProductsSection />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <SubTabs active={tab} onChange={setTab} />
+      <StoreOverview />
+    </div>
+  );
+}
+
+function SubTabs({
+  active,
+  onChange,
+}: {
+  active: "overview" | "products";
+  onChange: (t: "overview" | "products") => void;
+}) {
+  return (
+    <div className="flex gap-1 border-b border-border pb-0">
+      {(["overview", "products"] as const).map((t) => (
+        <button
+          key={t}
+          onClick={() => onChange(t)}
+          className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
+            active === t
+              ? "border-accent text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {t === "overview" ? "Overview" : "Products"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StoreOverview() {
   const { data, isLoading, isError } = useQuery<AnalyticsData>({
     queryKey: ["ca-analytics"],
     queryFn: async () => {
