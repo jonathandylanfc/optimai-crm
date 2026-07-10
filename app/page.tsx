@@ -13,8 +13,9 @@ import { ReportsSection } from "@/components/dashboard/sections/reports";
 import { SettingsSection } from "@/components/dashboard/sections/settings";
 import { OrdersSection } from "@/components/dashboard/sections/orders";
 import { ProductsSection } from "@/components/dashboard/sections/products";
+import { StoreAnalyticsSection } from "@/components/dashboard/sections/store-analytics";
 
-export type Section = "overview" | "pipeline" | "deals" | "orders" | "products" | "customers" | "team" | "forecasting" | "reports" | "settings";
+export type Section = "overview" | "pipeline" | "deals" | "orders" | "products" | "store" | "customers" | "team" | "forecasting" | "reports" | "settings";
 
 const validSections: Section[] = ["overview", "pipeline", "deals", "orders", "products", "customers", "team", "forecasting", "reports", "settings"];
 
@@ -46,6 +47,8 @@ export default function Dashboard() {
         return <OrdersSection />;
       case "products":
         return <ProductsSection />;
+      case "store":
+        return <StoreAnalyticsSection />;
       case "team":
         return <TeamSection />;
       case "forecasting":
