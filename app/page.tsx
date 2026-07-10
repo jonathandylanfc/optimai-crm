@@ -17,7 +17,7 @@ import { StoreAnalyticsSection } from "@/components/dashboard/sections/store-ana
 
 export type Section = "overview" | "pipeline" | "deals" | "orders" | "products" | "store" | "customers" | "team" | "forecasting" | "reports" | "settings";
 
-const validSections: Section[] = ["overview", "pipeline", "deals", "orders", "products", "customers", "team", "forecasting", "reports", "settings"];
+const validSections: Section[] = ["overview", "pipeline", "deals", "orders", "products", "store", "customers", "team", "forecasting", "reports", "settings"];
 
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState<Section>(() => {
