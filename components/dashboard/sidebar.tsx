@@ -16,7 +16,6 @@ import {
   TrendingUp,
   Settings,
   ShoppingCart,
-  Package,
   Store,
 } from "lucide-react";
 
@@ -34,7 +33,6 @@ const navItems: { id: Section; label: string; icon: React.ElementType }[] = [
   { id: "pipeline", label: "Pipeline", icon: GitBranch },
   { id: "deals", label: "Deals", icon: Handshake },
   { id: "orders", label: "Orders", icon: ShoppingCart },
-  { id: "products", label: "Products", icon: Package },
   { id: "store", label: "Store", icon: Store },
   { id: "customers", label: "Customers", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
