@@ -186,6 +186,8 @@ export function OrdersSection() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<MappedOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MappedOrder | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<MappedOrder | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const { data: rawOrders, isLoading, refetch } = useOrders();
   useOrdersRealtime(refetch);
@@ -234,6 +236,18 @@ export function OrdersSection() {
       await deleteOrder.mutateAsync(deleteTarget.id);
       setDeleteTarget(null);
     });
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    try {
+      await fetch(`/api/orders/${cancelTarget.id}/cancel`, { method: "POST" });
+      await refetch();
+    } finally {
+      setIsCancelling(false);
+      setCancelTarget(null);
+    }
   }
 
   const statuses: OrderStatus[] = ["pending", "processing", "fulfilled", "cancelled"];
@@ -291,10 +305,23 @@ export function OrdersSection() {
             ))}
           </div>
         </div>
-        <Button onClick={openAdd} className="bg-accent hover:bg-accent/90 text-accent-foreground">
-          <Plus className="w-4 h-4 mr-2" />
-          New Order
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await fetch("/api/orders/sync-store", { method: "POST" });
+              await refetch();
+            }}
+            title="Sync existing store orders into CRM"
+          >
+            Sync Store Orders
+          </Button>
+          <Button onClick={openAdd} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+            <Plus className="w-4 h-4 mr-2" />
+            New Order
+          </Button>
+        </div>
       </div>
 
       {/* Orders table */}
@@ -370,15 +397,27 @@ export function OrdersSection() {
                       <td className="px-4 py-3">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary opacity-0 group-hover:opacity-100 transition-all duration-200">
+                            <button className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">
                               <MoreHorizontal className="w-4 h-4" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuContent align="end" className="w-40">
                             <DropdownMenuItem onClick={() => openEdit(order)}>
                               <Pencil className="w-3.5 h-3.5 mr-2" />
                               Edit
                             </DropdownMenuItem>
+                            {order.status !== "cancelled" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-chart-3 focus:text-chart-3"
+                                  onClick={() => setCancelTarget(order)}
+                                >
+                                  <XCircle className="w-3.5 h-3.5 mr-2" />
+                                  Cancel Order
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
@@ -410,17 +449,38 @@ export function OrdersSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete order?</AlertDialogTitle>
             <AlertDialogDescription>
-              "{deleteTarget?.title}" will be permanently removed.
+              "{deleteTarget?.title}" will be permanently removed from the CRM.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Back</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{cancelTarget?.title}" will be marked as cancelled and the customer will receive a cancellation email.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              disabled={isCancelling}
+              className="bg-chart-3/90 text-white hover:bg-chart-3"
+            >
+              {isCancelling ? "Cancelling…" : "Cancel Order"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
