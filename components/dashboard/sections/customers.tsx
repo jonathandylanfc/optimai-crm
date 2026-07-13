@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCustomers } from "@/lib/hooks/use-customers";
-import { useOrdersByCustomer } from "@/lib/hooks/use-orders";
+import { useQuery } from "@tanstack/react-query";
 import { deleteCustomer as deleteCustomerAction } from "@/app/actions/customers";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomerForm } from "./customer-form";
@@ -42,23 +42,40 @@ const ORDER_STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
-function CustomerStoreOrders({ customerId }: { customerId: string }) {
-  const { data: orders, isLoading } = useOrdersByCustomer(customerId);
+function CustomerStoreOrders({ email }: { email: string }) {
+  const { data: allOrders, isLoading } = useQuery({
+    queryKey: ["ca-orders"],
+    queryFn: () => fetch("/api/ca-orders").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+
   if (isLoading) return <Skeleton className="h-12 w-full mt-3" />;
-  if (!orders || orders.length === 0) return (
+
+  const orders = (allOrders ?? []).filter(
+    (o: { customerEmail: string }) => o.customerEmail?.toLowerCase() === email.toLowerCase()
+  ).slice(0, 5);
+
+  if (orders.length === 0) return (
     <p className="text-xs text-muted-foreground mt-3 text-center py-2">No store purchases yet.</p>
   );
+
+  const STATUS_MAP: Record<string, string> = { shipped: "processing", delivered: "fulfilled" };
+
   return (
     <div className="mt-3 space-y-1.5">
-      {orders.map((o: { id: string; title: string; value: number; status: string; created_at: string }) => (
-        <div key={o.id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border last:border-0">
-          <span className="text-foreground truncate max-w-[160px]">{o.title}</span>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge className={`${ORDER_STATUS_COLORS[o.status] ?? ""} border text-[10px] py-0 px-1.5 capitalize`}>{o.status}</Badge>
-            <span className="text-muted-foreground font-medium">${Number(o.value).toFixed(2)}</span>
+      {orders.map((o: { id: number; status: string; totalCents: number; items: { productName: string; quantity: number }[]; createdAt: string }) => {
+        const displayStatus = STATUS_MAP[o.status] ?? o.status;
+        const summary = o.items?.slice(0, 2).map((it: { productName: string; quantity: number }) => `${it.quantity}× ${it.productName}`).join(", ") || `Order #${o.id}`;
+        return (
+          <div key={o.id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border last:border-0">
+            <span className="text-foreground truncate max-w-[160px]">{summary}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <Badge className={`${ORDER_STATUS_COLORS[displayStatus] ?? "bg-secondary"} border text-[10px] py-0 px-1.5 capitalize`}>{displayStatus}</Badge>
+              <span className="text-muted-foreground font-medium">${(o.totalCents / 100).toFixed(2)}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -402,7 +419,7 @@ export function CustomersSection() {
                   {expandedOrders === customer.id && (
                     <div className="mt-3 pt-3 border-t border-border">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Store Orders</p>
-                      <CustomerStoreOrders customerId={customer.id} />
+                      <CustomerStoreOrders email={customer.email} />
                     </div>
                   )}
                 </CardContent>

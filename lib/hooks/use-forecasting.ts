@@ -1,20 +1,17 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+
+async function fetchForecasting() {
+  const res = await fetch("/api/ca-forecasting");
+  if (!res.ok) throw new Error("Failed to fetch forecasting data");
+  return res.json();
+}
 
 export function useForecasting() {
   return useQuery({
-    queryKey: ["forecasting"],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("forecast_data")
-        .select("*")
-        .order("year", { ascending: true })
-        .order("month", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryKey: ["ca-forecasting"],
+    queryFn: fetchForecasting,
+    refetchInterval: 120_000,
   });
 }
