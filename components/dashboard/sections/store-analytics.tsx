@@ -1,10 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ProductsSection } from "@/components/dashboard/sections/products";
 import {
   DollarSign,
@@ -198,6 +209,10 @@ function ReviewsSection() {
 }
 
 function StoreOverview() {
+  const qc = useQueryClient();
+  const [cancelTarget, setCancelTarget] = useState<{ id: number; customerName: string } | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const { data, isLoading, isError } = useQuery<AnalyticsData>({
     queryKey: ["ca-analytics"],
     queryFn: async () => {
@@ -207,6 +222,22 @@ function StoreOverview() {
     },
     staleTime: 60_000,
   });
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    try {
+      await fetch("/api/orders/cancel-store-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeOrderId: cancelTarget.id }),
+      });
+      await qc.invalidateQueries({ queryKey: ["ca-analytics"] });
+    } finally {
+      setIsCancelling(false);
+      setCancelTarget(null);
+    }
+  }
 
   if (isError) {
     return (
@@ -353,6 +384,7 @@ function StoreOverview() {
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Status</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Total</th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Date</th>
+                    <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
                 <tbody>
@@ -360,7 +392,7 @@ function StoreOverview() {
                     const Icon = STATUS_ICONS[order.status] ?? ShoppingCart;
                     const colorClass = STATUS_COLORS[order.status] ?? "bg-muted/20 text-muted-foreground border-muted/30";
                     return (
-                      <tr key={order.id} className="border-b border-border last:border-0 hover:bg-secondary/40 transition-colors">
+                      <tr key={order.id} className="border-b border-border last:border-0 hover:bg-secondary/40 transition-colors group">
                         <td className="px-4 py-3 font-medium text-foreground">{order.customerName}</td>
                         <td className="px-4 py-3">
                           <Badge className={`${colorClass} border flex items-center gap-1 w-fit capitalize text-xs`}>
@@ -376,6 +408,19 @@ function StoreOverview() {
                             year: "numeric",
                           })}
                         </td>
+                        <td className="px-4 py-3">
+                          {order.status !== "cancelled" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setCancelTarget({ id: order.id, customerName: order.customerName })}
+                            >
+                              <XCircle className="w-3.5 h-3.5 mr-1" />
+                              Cancel
+                            </Button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -385,6 +430,27 @@ function StoreOverview() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Order for {cancelTarget?.customerName} will be cancelled and they will receive a cancellation email.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? "Cancelling…" : "Cancel Order"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Review stats + Low stock */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
