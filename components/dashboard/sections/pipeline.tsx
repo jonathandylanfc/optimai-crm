@@ -98,7 +98,7 @@ export function PipelineSection() {
         {stages.map((stage, stageIndex) => (
           <div
             key={stage.id}
-            className="bg-card border border-border rounded-xl p-4 min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500"
+            className="bg-card border border-border rounded-xl p-4 min-h-[200px] sm:min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500"
             style={{ animationDelay: `${stageIndex * 100}ms`, animationFillMode: "both" }}
           >
             <div className="flex items-center justify-between mb-4">

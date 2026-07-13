@@ -46,10 +46,10 @@ export function Header({ activeSection, onMobileMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Search */}
+        {/* Search — hidden on mobile */}
         <div
           className={cn(
-            "relative flex items-center transition-all duration-300",
+            "relative hidden sm:flex items-center transition-all duration-300",
             searchFocused ? "w-64" : "w-48"
           )}
         >

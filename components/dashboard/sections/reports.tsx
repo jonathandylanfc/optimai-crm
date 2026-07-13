@@ -205,8 +205,8 @@ export function ReportsSection() {
             <h3 className="text-base font-semibold text-foreground">Lead Sources</h3>
             <p className="text-sm text-muted-foreground mt-0.5">Where your leads come from</p>
           </div>
-          <div className="flex items-center gap-8">
-            <div className={`w-[180px] h-[180px] transition-opacity duration-700 ${chartsLoaded ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-8">
+            <div className={`w-[160px] h-[160px] sm:w-[180px] sm:h-[180px] shrink-0 transition-opacity duration-700 ${chartsLoaded ? 'opacity-100' : 'opacity-0'}`}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -267,7 +267,7 @@ export function ReportsSection() {
           {!isLoading && reports.map((report, index) => (
             <div
               key={report.id}
-              className="flex items-center justify-between px-5 py-4 hover:bg-secondary/30 transition-colors duration-150 cursor-pointer animate-in fade-in slide-in-from-left-2"
+              className="flex items-center justify-between gap-3 px-5 py-4 hover:bg-secondary/30 transition-colors duration-150 cursor-pointer animate-in fade-in slide-in-from-left-2"
               style={{ animationDelay: `${(index + 6) * 50}ms`, animationFillMode: "both" }}
             >
               <div className="flex items-center gap-4">

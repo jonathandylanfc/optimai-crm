@@ -142,36 +142,38 @@ export function SettingsSection() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-secondary border border-border p-1">
-          <TabsTrigger
-            value="profile"
-            className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-          >
-            <User className="w-4 h-4 mr-2" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger
-            value="notifications"
-            className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-          >
-            <Bell className="w-4 h-4 mr-2" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger
-            value="integrations"
-            className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-          >
-            <Link2 className="w-4 h-4 mr-2" />
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger
-            value="security"
-            className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-          >
-            <Shield className="w-4 h-4 mr-2" />
-            Security
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="bg-secondary border border-border p-1 min-w-max">
+            <TabsTrigger
+              value="profile"
+              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              <User className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Profile</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="notifications"
+              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              <Bell className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Notifications</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="integrations"
+              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              <Link2 className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Integrations</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="security"
+              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+            >
+              <Shield className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Security</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Profile Tab */}
         <TabsContent value="profile" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">

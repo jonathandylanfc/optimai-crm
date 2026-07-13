@@ -75,7 +75,7 @@ export default function Dashboard() {
         }`}
       >
         <Header activeSection={activeSection} onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-3 sm:p-6 overflow-auto">
           <div
             key={activeSection}
             className="animate-in fade-in slide-in-from-bottom-4 duration-500"

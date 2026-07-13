@@ -203,10 +203,10 @@ export function CustomersSection() {
               placeholder="Search clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-[280px] bg-secondary border-border focus:border-accent"
+              className="pl-10 w-full sm:w-[280px] bg-secondary border-border focus:border-accent"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Filter className="w-4 h-4 text-muted-foreground" />
             {["Enterprise", "Growth", "Starter"].map((tier) => (
               <Button
