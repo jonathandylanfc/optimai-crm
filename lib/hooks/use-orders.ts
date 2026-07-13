@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase-client";
 import type { OrderPayload } from "@/app/actions/orders";
@@ -13,6 +14,36 @@ export function useOrders() {
         .from("orders")
         .select("*")
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useOrdersRealtime(refetch: () => void) {
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("orders-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => refetch())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [refetch]);
+}
+
+export function useOrdersByCustomer(customerId: string | null) {
+  return useQuery({
+    queryKey: ["orders", "customer", customerId],
+    enabled: !!customerId,
+    queryFn: async () => {
+      if (!customerId) return [];
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, title, value, status, created_at")
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false })
+        .limit(5);
       if (error) throw error;
       return data ?? [];
     },

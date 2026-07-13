@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Building2, Search, Plus, MapPin, Mail, Phone, DollarSign,
   Calendar, ExternalLink, Star, TrendingUp, TrendingDown, Filter,
-  Pencil, Trash2, MoreHorizontal, FileText, Clock,
+  Pencil, Trash2, MoreHorizontal, FileText, Clock, ShoppingCart,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -30,9 +30,38 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCustomers } from "@/lib/hooks/use-customers";
+import { useOrdersByCustomer } from "@/lib/hooks/use-orders";
 import { deleteCustomer as deleteCustomerAction } from "@/app/actions/customers";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomerForm } from "./customer-form";
+
+const ORDER_STATUS_COLORS: Record<string, string> = {
+  pending: "bg-chart-3/20 text-chart-3 border-chart-3/30",
+  processing: "bg-accent/20 text-accent border-accent/30",
+  fulfilled: "bg-chart-1/20 text-chart-1 border-chart-1/30",
+  cancelled: "bg-destructive/20 text-destructive border-destructive/30",
+};
+
+function CustomerStoreOrders({ customerId }: { customerId: string }) {
+  const { data: orders, isLoading } = useOrdersByCustomer(customerId);
+  if (isLoading) return <Skeleton className="h-12 w-full mt-3" />;
+  if (!orders || orders.length === 0) return (
+    <p className="text-xs text-muted-foreground mt-3 text-center py-2">No store purchases yet.</p>
+  );
+  return (
+    <div className="mt-3 space-y-1.5">
+      {orders.map((o: { id: string; title: string; value: number; status: string; created_at: string }) => (
+        <div key={o.id} className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-border last:border-0">
+          <span className="text-foreground truncate max-w-[160px]">{o.title}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge className={`${ORDER_STATUS_COLORS[o.status] ?? ""} border text-[10px] py-0 px-1.5 capitalize`}>{o.status}</Badge>
+            <span className="text-muted-foreground font-medium">${Number(o.value).toFixed(2)}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const tierColors: Record<string, string> = {
   Enterprise: "bg-accent/20 text-accent border-accent/30",
@@ -76,6 +105,7 @@ export function CustomersSection() {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<MappedCustomer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MappedCustomer | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<string | null>(null);
 
   const { data: rawCustomers, isLoading } = useCustomers();
   const qc = useQueryClient();
@@ -355,10 +385,26 @@ export function CustomersSection() {
                       <Mail className="w-3.5 h-3.5 mr-1.5" />
                       Email
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setExpandedOrders(expandedOrders === customer.id ? null : customer.id)}
+                      title="Store orders"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => openEdit(customer)}>
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   </div>
+
+                  {/* Store orders panel */}
+                  {expandedOrders === customer.id && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Store Orders</p>
+                      <CustomerStoreOrders customerId={customer.id} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

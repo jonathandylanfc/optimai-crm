@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useOrders, useCreateOrder, useUpdateOrder, useDeleteOrder } from "@/lib/hooks/use-orders";
+import { useOrders, useOrdersRealtime, useCreateOrder, useUpdateOrder, useDeleteOrder } from "@/lib/hooks/use-orders";
 import type { OrderStatus, OrderPayload } from "@/app/actions/orders";
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -187,7 +187,8 @@ export function OrdersSection() {
   const [editTarget, setEditTarget] = useState<MappedOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MappedOrder | null>(null);
 
-  const { data: rawOrders, isLoading } = useOrders();
+  const { data: rawOrders, isLoading, refetch } = useOrders();
+  useOrdersRealtime(refetch);
   const deleteOrder = useDeleteOrder();
   const [isDeleting, startDeleteTransition] = useTransition();
 

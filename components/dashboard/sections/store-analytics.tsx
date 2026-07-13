@@ -29,6 +29,7 @@ type AnalyticsData = {
   recentOrders: { id: number; customerName: string; status: string; totalCents: number; createdAt: string }[];
   reviewCount: number;
   averageRating: number | null;
+  recentReviews: { id: number; rating: number; body: string; createdAt: string; productName: string }[];
   discountCodesIssued: number;
   discountCodesUsed: number;
   lowStock: { id: number; name: string; stock: number }[];
@@ -90,48 +91,108 @@ function StatCard({
   );
 }
 
-export function StoreAnalyticsSection() {
-  const [tab, setTab] = useState<"overview" | "products">("overview");
+type StoreTab = "overview" | "products" | "reviews";
 
-  if (tab === "products") {
-    return (
-      <div className="space-y-4">
-        <SubTabs active={tab} onChange={setTab} />
-        <ProductsSection />
-      </div>
-    );
-  }
+export function StoreAnalyticsSection() {
+  const [tab, setTab] = useState<StoreTab>("overview");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <SubTabs active={tab} onChange={setTab} />
-      <StoreOverview />
+      {tab === "overview" && <StoreOverview />}
+      {tab === "products" && <ProductsSection />}
+      {tab === "reviews" && <ReviewsSection />}
     </div>
   );
 }
 
-function SubTabs({
-  active,
-  onChange,
-}: {
-  active: "overview" | "products";
-  onChange: (t: "overview" | "products") => void;
-}) {
+function SubTabs({ active, onChange }: { active: StoreTab; onChange: (t: StoreTab) => void }) {
+  const tabs: { key: StoreTab; label: string }[] = [
+    { key: "overview", label: "Overview" },
+    { key: "products", label: "Products" },
+    { key: "reviews", label: "Reviews" },
+  ];
   return (
     <div className="flex gap-1 border-b border-border pb-0">
-      {(["overview", "products"] as const).map((t) => (
+      {tabs.map(({ key, label }) => (
         <button
-          key={t}
-          onClick={() => onChange(t)}
+          key={key}
+          onClick={() => onChange(key)}
           className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${
-            active === t
+            active === key
               ? "border-accent text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          {t === "overview" ? "Overview" : "Products"}
+          {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function ReviewsSection() {
+  const { data, isLoading, isError } = useQuery<AnalyticsData>({
+    queryKey: ["ca-analytics"],
+    queryFn: async () => {
+      const res = await fetch("/api/ca-analytics");
+      if (!res.ok) throw new Error(`Failed: ${res.status}`);
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Customer Reviews</h2>
+        <p className="text-sm text-muted-foreground mt-1">Recent reviews from the storefront</p>
+      </div>
+
+      {isError && (
+        <p className="text-sm text-destructive">Could not load review data.</p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          : (data?.recentReviews ?? []).length === 0
+          ? <p className="text-sm text-muted-foreground py-8 text-center">No reviews yet.</p>
+          : (data?.recentReviews ?? []).map((review) => (
+              <Card key={review.id} className="border-border bg-card">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground mb-1">{review.productName}</p>
+                      <p className="text-amber-400 text-sm mb-2">{stars(review.rating)}</p>
+                      {review.body && (
+                        <p className="text-sm text-muted-foreground leading-relaxed">{review.body}</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                      {new Date(review.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+      </div>
+
+      {!isLoading && (
+        <div className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card">
+          <Star className="w-8 h-8 text-chart-3 opacity-60 shrink-0" />
+          <div>
+            <p className="text-2xl font-bold text-foreground">
+              {data?.averageRating ? data.averageRating.toFixed(1) : "—"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              avg rating across {data?.reviewCount ?? 0} reviews
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
