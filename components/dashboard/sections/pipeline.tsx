@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Plus, MoreHorizontal, Clock, DollarSign, User, Building2 } from "lucide-react";
 import { usePipeline, usePipelineRealtime } from "@/lib/hooks/use-pipeline";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,14 +16,10 @@ interface DealRow {
 }
 
 function DealCard({ deal, index }: { deal: DealRow; index: number }) {
-  const [isHovered, setIsHovered] = useState(false);
-
   return (
     <div
       className="group bg-background border border-border rounded-lg p-4 cursor-grab active:cursor-grabbing hover:border-accent/50 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
       style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -34,10 +28,7 @@ function DealCard({ deal, index }: { deal: DealRow; index: number }) {
           </div>
           <span className="text-sm font-medium text-foreground truncate max-w-[120px]">{deal.company}</span>
         </div>
-        <button className={cn(
-          "w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200",
-          isHovered ? "opacity-100" : "opacity-0"
-        )}>
+        <button className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">
           <MoreHorizontal className="w-4 h-4" />
         </button>
       </div>

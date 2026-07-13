@@ -38,22 +38,22 @@ const integrations = [
     id: "salesforce",
     name: "Salesforce",
     description: "Sync contacts and opportunities",
-    connected: true,
-    lastSync: "2 hours ago",
+    connected: false,
+    lastSync: null,
   },
   {
     id: "hubspot",
     name: "HubSpot",
     description: "Marketing automation and CRM",
-    connected: true,
-    lastSync: "5 mins ago",
+    connected: false,
+    lastSync: null,
   },
   {
     id: "slack",
     name: "Slack",
     description: "Team notifications and alerts",
-    connected: true,
-    lastSync: "Real-time",
+    connected: false,
+    lastSync: null,
   },
   {
     id: "gmail",
@@ -73,8 +73,8 @@ const integrations = [
     id: "zoom",
     name: "Zoom",
     description: "Video conferencing integration",
-    connected: true,
-    lastSync: "1 hour ago",
+    connected: false,
+    lastSync: null,
   },
 ];
 
@@ -202,7 +202,7 @@ export function SettingsSection() {
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
                     id="firstName"
-                    defaultValue="John"
+                    placeholder="First name"
                     className="bg-secondary border-border focus:border-accent"
                   />
                 </div>
@@ -210,7 +210,7 @@ export function SettingsSection() {
                   <Label htmlFor="lastName">Last Name</Label>
                   <Input
                     id="lastName"
-                    defaultValue="Doe"
+                    placeholder="Last name"
                     className="bg-secondary border-border focus:border-accent"
                   />
                 </div>
@@ -219,7 +219,7 @@ export function SettingsSection() {
                   <Input
                     id="email"
                     type="email"
-                    defaultValue="john.doe@company.com"
+                    placeholder="your@email.com"
                     className="bg-secondary border-border focus:border-accent"
                   />
                 </div>
@@ -515,9 +515,9 @@ export function SettingsSection() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-accent/20 text-accent border-accent/30">Enabled</Badge>
+                  <Badge className="bg-muted text-muted-foreground border-border">Not set up</Badge>
                   <Button variant="outline" size="sm">
-                    Manage
+                    Enable
                   </Button>
                 </div>
               </div>
@@ -530,42 +530,21 @@ export function SettingsSection() {
               <CardDescription>Manage devices where you&apos;re signed in</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {[
-                  { device: "MacBook Pro", location: "San Francisco, CA", current: true, time: "Now" },
-                  { device: "iPhone 15", location: "San Francisco, CA", current: false, time: "2 hours ago" },
-                  { device: "Chrome on Windows", location: "New York, NY", current: false, time: "1 day ago" },
-                ].map((session, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border animate-in fade-in slide-in-from-left-2"
-                    style={{ animationDelay: `${index * 75}ms` }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                        <Globe className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {session.device}
-                          {session.current && (
-                            <Badge className="ml-2 bg-accent/20 text-accent border-accent/30 text-xs">
-                              Current
-                            </Badge>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {session.location} • {session.time}
-                        </p>
-                      </div>
-                    </div>
-                    {!session.current && (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                        Revoke
-                      </Button>
-                    )}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                    <Globe className="w-4 h-4 text-muted-foreground" />
                   </div>
-                ))}
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Current Session
+                      <Badge className="ml-2 bg-accent/20 text-accent border-accent/30 text-xs">
+                        Active
+                      </Badge>
+                    </p>
+                    <p className="text-xs text-muted-foreground">Your current browser session</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
