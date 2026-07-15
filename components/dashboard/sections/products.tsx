@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Package, Search, Plus, DollarSign, Tag, Eye, EyeOff,
-  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X,
+  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -195,6 +195,88 @@ function MultiImageUploader({
   );
 }
 
+type ProcessMode = "remove-bg" | "enhance";
+
+function AiImagePanel({
+  imageUrl,
+  onImageUrl,
+}: {
+  imageUrl: string;
+  onImageUrl: (url: string) => void;
+}) {
+  const [fetchUrl, setFetchUrl] = useState("");
+  const [processing, setProcessing] = useState<ProcessMode | null>(null);
+  const [error, setError] = useState("");
+
+  async function run(mode: ProcessMode) {
+    const source = fetchUrl.trim() || imageUrl.trim();
+    if (!source) return;
+    setProcessing(mode);
+    setError("");
+    try {
+      const res = await fetch("/api/store/remove-bg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: source, mode }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setError(data.error ?? "Unknown error");
+      } else {
+        onImageUrl(data.url);
+        setFetchUrl("");
+      }
+    } catch {
+      setError("Request failed");
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  const busy = processing !== null;
+  const hasSource = !!(fetchUrl.trim() || imageUrl.trim());
+
+  return (
+    <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">AI Image Processing</p>
+      <p className="text-[11px] text-muted-foreground/70">
+        Paste an Amazon image URL (right-click product image → Open in new tab → copy URL), or leave blank to re-process the current cover image.
+      </p>
+      <input
+        type="text"
+        value={fetchUrl}
+        onChange={(e) => setFetchUrl(e.target.value)}
+        placeholder="https://m.media-amazon.com/images/I/..."
+        className="w-full rounded-md border border-border bg-secondary px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+      />
+      <div className="flex gap-2 flex-wrap">
+        <button
+          type="button"
+          onClick={() => run("remove-bg")}
+          disabled={busy || !hasSource}
+          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary disabled:opacity-40"
+        >
+          <Scissors className="w-3.5 h-3.5" />
+          {processing === "remove-bg" ? "Processing…" : "Remove Background"}
+        </button>
+        <button
+          type="button"
+          onClick={() => run("enhance")}
+          disabled={busy || !hasSource}
+          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-accent/90 disabled:opacity-40"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          {processing === "enhance" ? "Processing…" : "Enhance for Selling"}
+        </button>
+      </div>
+      {busy && (
+        <p className="text-[11px] text-muted-foreground/60">Takes ~15–30 s on first use while the AI model loads…</p>
+      )}
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 function ProductForm({
   open,
   onClose,
@@ -265,6 +347,11 @@ function ProductForm({
             onImagesChange={setImages}
             onCoverChange={setImageUrl}
           />
+
+          <AiImagePanel imageUrl={imageUrl} onImageUrl={(url) => {
+            setImageUrl(url);
+            if (!images.includes(url)) setImages((prev) => [url, ...prev.filter((u) => u !== url)]);
+          }} />
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Name *</label>
