@@ -7,7 +7,9 @@ type Mode = "remove-bg" | "enhance";
 function processImage(imageBuffer: Buffer, mode: Mode): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), "scripts", "process-image.py");
-    const proc = spawn("python3", [scriptPath, mode], { timeout: 90_000, shell: false, env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env.PATH ?? ""}` } });
+    console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode}`);
+    // shell:true lets /bin/sh resolve python3 via its full PATH (works in both apt and nix environments)
+    const proc = spawn("python3", [scriptPath, mode], { timeout: 90_000, shell: true });
 
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
@@ -23,7 +25,10 @@ function processImage(imageBuffer: Buffer, mode: Mode): Promise<Buffer> {
       }
     });
 
-    proc.on("error", reject);
+    proc.on("error", (err) => {
+      console.error(`[remove-bg] spawn error: ${String(err)}`);
+      reject(err);
+    });
     proc.stdin.write(imageBuffer);
     proc.stdin.end();
   });
