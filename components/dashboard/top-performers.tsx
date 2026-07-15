@@ -18,7 +18,7 @@ function useTopPerformers() {
 
       const map = new Map<string, { name: string; deals: number; revenue: number }>();
       for (const d of deals ?? []) {
-        const member = d.team_members as { id: string; name: string } | null;
+        const member = d.team_members as unknown as { id: string; name: string } | null;
         if (!member) continue;
         const existing = map.get(member.id);
         if (existing) {

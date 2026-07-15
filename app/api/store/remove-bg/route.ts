@@ -34,7 +34,7 @@ async function uploadToCloudinary(pngBuffer: Buffer): Promise<string> {
   const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "OPTIMAI";
 
   const form = new FormData();
-  form.append("file", new Blob([pngBuffer], { type: "image/png" }), "product.png");
+  form.append("file", new Blob([new Uint8Array(pngBuffer)], { type: "image/png" }), "product.png");
   form.append("upload_preset", uploadPreset);
   form.append("folder", "products");
 

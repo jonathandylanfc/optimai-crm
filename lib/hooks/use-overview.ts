@@ -55,7 +55,8 @@ export function useOverviewMetrics() {
       const conversionRate = deals.length > 0 ? ((closedWon.length / deals.length) * 100).toFixed(1) : "0";
 
       // Store customers = unique emails from orders
-      const uniqueEmails = new Set(storeOrders.map((o: { customerEmail?: string } & typeof o) => (o as { customerEmail?: string }).customerEmail).filter(Boolean));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uniqueEmails = new Set((storeOrders as any[]).map((o) => o.customerEmail).filter(Boolean));
       const storeCustomerCount = uniqueEmails.size;
 
       return {
