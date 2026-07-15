@@ -72,11 +72,14 @@ function MultiImageUploader({
   onCoverChange: (url: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [processing, setProcessing] = useState<"remove-bg" | "enhance" | null>(null);
+  const [aiError, setAiError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFiles(files: FileList) {
-    setError("");
+    setUploadError("");
     setUploading(true);
     try {
       const uploads = await Promise.all(
@@ -88,9 +91,46 @@ function MultiImageUploader({
       onImagesChange(next);
       if (!coverUrl && next.length > 0) onCoverChange(next[0]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setUploading(false);
+    }
+  }
+
+  function addUrlDirectly() {
+    const url = urlInput.trim();
+    if (!url) return;
+    const next = images.includes(url) ? images : [...images, url];
+    onImagesChange(next);
+    onCoverChange(url);
+    setUrlInput("");
+  }
+
+  async function runAi(mode: "remove-bg" | "enhance") {
+    const source = urlInput.trim() || coverUrl.trim();
+    if (!source) return;
+    setProcessing(mode);
+    setAiError("");
+    try {
+      const res = await fetch("/api/store/remove-bg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: source, mode }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setAiError(data.error ?? "Unknown error");
+      } else {
+        const url = data.url;
+        const next = images.includes(url) ? images : [url, ...images];
+        onImagesChange(next);
+        onCoverChange(url);
+        setUrlInput("");
+      }
+    } catch {
+      setAiError("Request failed");
+    } finally {
+      setProcessing(null);
     }
   }
 
@@ -101,14 +141,60 @@ function MultiImageUploader({
   }
 
   const allImages = images.length > 0 ? images : coverUrl ? [coverUrl] : [];
+  const aiBusy = processing !== null;
+  const hasAiSource = !!(urlInput.trim() || coverUrl.trim());
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-muted-foreground">
-        Product Photos
-        <span className="ml-1.5 text-xs font-normal text-muted-foreground/60">— click a photo to set it as cover</span>
-      </label>
+    <div className="space-y-3">
+      <label className="text-sm font-medium text-muted-foreground">Product Photos</label>
 
+      {/* URL input row — always visible at top */}
+      <div className="space-y-1.5">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrlDirectly(); } }}
+            placeholder="Paste image URL (e.g. from Amazon)…"
+            className="flex-1 rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={addUrlDirectly}
+            disabled={!urlInput.trim()}
+            className="shrink-0 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-secondary disabled:opacity-40 transition-colors"
+          >
+            Add
+          </button>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => runAi("remove-bg")}
+            disabled={aiBusy || !hasAiSource}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary disabled:opacity-40"
+          >
+            <Scissors className="w-3.5 h-3.5" />
+            {processing === "remove-bg" ? "Processing…" : "Remove Background"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runAi("enhance")}
+            disabled={aiBusy || !hasAiSource}
+            className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-accent/90 disabled:opacity-40"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {processing === "enhance" ? "Processing…" : "Enhance for Selling"}
+          </button>
+        </div>
+        {aiBusy && (
+          <p className="text-[11px] text-muted-foreground/60">Takes ~15–30 s on first use while the AI model loads…</p>
+        )}
+        {aiError && <p className="text-xs text-destructive">{aiError}</p>}
+      </div>
+
+      {/* Photo grid */}
       {allImages.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
           {allImages.map((url) => {
@@ -139,7 +225,6 @@ function MultiImageUploader({
             );
           })}
 
-          {/* Add more button */}
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
@@ -151,7 +236,7 @@ function MultiImageUploader({
             ) : (
               <>
                 <Upload className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Add</span>
+                <span className="text-[10px] font-medium">Upload</span>
               </>
             )}
           </button>
@@ -163,7 +248,7 @@ function MultiImageUploader({
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => inputRef.current?.click()}
-          className="w-full h-40 rounded-lg border-2 border-dashed border-border hover:border-accent/50 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer bg-secondary/30 hover:bg-secondary/50"
+          className="w-full h-32 rounded-lg border-2 border-dashed border-border hover:border-accent/50 transition-colors flex flex-col items-center justify-center gap-2 cursor-pointer bg-secondary/30 hover:bg-secondary/50"
         >
           {uploading ? (
             <>
@@ -172,14 +257,14 @@ function MultiImageUploader({
             </>
           ) : (
             <>
-              <ImageIcon className="w-8 h-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">Drop images or click to upload</p>
+              <ImageIcon className="w-7 h-7 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">Drop files or click to upload</p>
             </>
           )}
         </div>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
       <input
         ref={inputRef}
         type="file"
@@ -191,88 +276,6 @@ function MultiImageUploader({
           e.target.value = "";
         }}
       />
-    </div>
-  );
-}
-
-type ProcessMode = "remove-bg" | "enhance";
-
-function AiImagePanel({
-  imageUrl,
-  onImageUrl,
-}: {
-  imageUrl: string;
-  onImageUrl: (url: string) => void;
-}) {
-  const [fetchUrl, setFetchUrl] = useState("");
-  const [processing, setProcessing] = useState<ProcessMode | null>(null);
-  const [error, setError] = useState("");
-
-  async function run(mode: ProcessMode) {
-    const source = fetchUrl.trim() || imageUrl.trim();
-    if (!source) return;
-    setProcessing(mode);
-    setError("");
-    try {
-      const res = await fetch("/api/store/remove-bg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: source, mode }),
-      });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        setError(data.error ?? "Unknown error");
-      } else {
-        onImageUrl(data.url);
-        setFetchUrl("");
-      }
-    } catch {
-      setError("Request failed");
-    } finally {
-      setProcessing(null);
-    }
-  }
-
-  const busy = processing !== null;
-  const hasSource = !!(fetchUrl.trim() || imageUrl.trim());
-
-  return (
-    <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">AI Image Processing</p>
-      <p className="text-[11px] text-muted-foreground/70">
-        Paste an Amazon image URL (right-click product image → Open in new tab → copy URL), or leave blank to re-process the current cover image.
-      </p>
-      <input
-        type="text"
-        value={fetchUrl}
-        onChange={(e) => setFetchUrl(e.target.value)}
-        placeholder="https://m.media-amazon.com/images/I/..."
-        className="w-full rounded-md border border-border bg-secondary px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-      />
-      <div className="flex gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => run("remove-bg")}
-          disabled={busy || !hasSource}
-          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary disabled:opacity-40"
-        >
-          <Scissors className="w-3.5 h-3.5" />
-          {processing === "remove-bg" ? "Processing…" : "Remove Background"}
-        </button>
-        <button
-          type="button"
-          onClick={() => run("enhance")}
-          disabled={busy || !hasSource}
-          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:bg-accent/90 disabled:opacity-40"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          {processing === "enhance" ? "Processing…" : "Enhance for Selling"}
-        </button>
-      </div>
-      {busy && (
-        <p className="text-[11px] text-muted-foreground/60">Takes ~15–30 s on first use while the AI model loads…</p>
-      )}
-      {error && <p className="text-[11px] text-destructive">{error}</p>}
     </div>
   );
 }
@@ -347,11 +350,6 @@ function ProductForm({
             onImagesChange={setImages}
             onCoverChange={setImageUrl}
           />
-
-          <AiImagePanel imageUrl={imageUrl} onImageUrl={(url) => {
-            setImageUrl(url);
-            if (!images.includes(url)) setImages((prev) => [url, ...prev.filter((u) => u !== url)]);
-          }} />
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-muted-foreground">Name *</label>
