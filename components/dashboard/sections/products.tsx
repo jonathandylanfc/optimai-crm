@@ -109,6 +109,13 @@ function MultiImageUploader({
   async function runAi(mode: "remove-bg" | "enhance") {
     const source = urlInput.trim() || coverUrl.trim();
     if (!source) return;
+    try {
+      const parsed = new URL(source);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
+    } catch {
+      setAiError("Please enter a full image URL starting with https://");
+      return;
+    }
     setProcessing(mode);
     setAiError("");
     try {
