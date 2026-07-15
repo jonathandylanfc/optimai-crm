@@ -8,8 +8,7 @@ function processImage(imageBuffer: Buffer, mode: Mode): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), "scripts", "process-image.py");
     console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode}`);
-    // shell:true lets /bin/sh resolve python3 via its full PATH (works in both apt and nix environments)
-    const proc = spawn("python3", [scriptPath, mode], { timeout: 90_000, shell: true });
+    const proc = spawn("/usr/bin/python3", [scriptPath, mode], { timeout: 90_000, shell: false });
 
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
