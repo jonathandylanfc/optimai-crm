@@ -7,7 +7,7 @@ type Mode = "remove-bg" | "enhance";
 function processImage(imageBuffer: Buffer, mode: Mode): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), "scripts", "process-image.py");
-    const proc = spawn("python3", [scriptPath, mode], { timeout: 90_000 });
+    const proc = spawn("python3", [scriptPath, mode], { timeout: 90_000, shell: false, env: { ...process.env, PATH: `/usr/bin:/usr/local/bin:${process.env.PATH ?? ""}` } });
 
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
