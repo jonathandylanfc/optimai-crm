@@ -16,7 +16,7 @@ def remove_bg(img_bytes: bytes) -> bytes:
     from rembg import remove
     return remove(img_bytes)
 
-def enhance(img_bytes: bytes, size: int = 800, padding: int = 80) -> bytes:
+def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
     from rembg import remove
     transparent = remove(img_bytes)
     fg = Image.open(io.BytesIO(transparent)).convert("RGBA")
@@ -24,7 +24,11 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 80) -> bytes:
     canvas = Image.new("RGBA", (size, size), (255, 255, 255, 255))
 
     max_dim = size - 2 * padding
-    fg.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    # Scale to fill the target area (both up and down)
+    ratio = min(max_dim / fg.width, max_dim / fg.height)
+    new_w = max(1, int(fg.width * ratio))
+    new_h = max(1, int(fg.height * ratio))
+    fg = fg.resize((new_w, new_h), Image.LANCZOS)
 
     x = (size - fg.width) // 2
     y = (size - fg.height) // 2
