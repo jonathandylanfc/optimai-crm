@@ -24,7 +24,12 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
     transparent = remove(img_bytes)
     fg = Image.open(io.BytesIO(transparent)).convert("RGBA")
 
-    # 2. Boost sharpness, contrast, colour saturation, brightness on the RGB channels
+    # 2. Crop out transparent border so we're working with just the product
+    bbox = fg.getbbox()
+    if bbox:
+        fg = fg.crop(bbox)
+
+    # 3. Boost sharpness, contrast, colour saturation, brightness on the RGB channels
     r, g, b, a = fg.split()
     rgb = Image.merge("RGB", (r, g, b))
     rgb = ImageEnhance.Sharpness(rgb).enhance(2.0)    # crisp edges
@@ -34,14 +39,14 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
     r2, g2, b2 = rgb.split()
     fg = Image.merge("RGBA", (r2, g2, b2, a))
 
-    # 3. Scale to fill the canvas (up or down)
+    # 4. Scale to fill the canvas (up or down)
     max_dim = size - 2 * padding
     ratio = min(max_dim / fg.width, max_dim / fg.height)
     new_w = max(1, int(fg.width * ratio))
     new_h = max(1, int(fg.height * ratio))
     fg = fg.resize((new_w, new_h), Image.LANCZOS)
 
-    # 4. Composite onto white canvas with a soft drop-shadow
+    # 5. Composite onto white canvas with a soft drop-shadow
     canvas = Image.new("RGBA", (size, size), (255, 255, 255, 255))
     cx = (size - new_w) // 2
     cy = (size - new_h) // 2
