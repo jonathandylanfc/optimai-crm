@@ -46,8 +46,8 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
     new_h = max(1, int(fg.height * ratio))
     fg = fg.resize((new_w, new_h), Image.LANCZOS)
 
-    # 5. Composite onto white canvas with a soft drop-shadow
-    canvas = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+    # 5. Composite onto transparent canvas with a soft drop-shadow
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     cx = (size - new_w) // 2
     cy = (size - new_h) // 2
 
@@ -63,7 +63,7 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
     canvas.paste(fg, (cx, cy), fg)
 
     out = io.BytesIO()
-    canvas.convert("RGB").save(out, format="PNG", optimize=True)
+    canvas.save(out, format="PNG", optimize=True)
     return out.getvalue()
 
 if __name__ == "__main__":
