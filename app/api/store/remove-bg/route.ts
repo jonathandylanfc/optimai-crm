@@ -3,12 +3,15 @@ import { spawn } from "child_process";
 import path from "path";
 
 type Mode = "remove-bg" | "enhance";
+type CropRect = { x: number; y: number; w: number; h: number };
 
-function processImage(imageBuffer: Buffer, mode: Mode): Promise<Buffer> {
+function processImage(imageBuffer: Buffer, mode: Mode, crop?: CropRect): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), "scripts", "process-image.py");
-    console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode}`);
-    const proc = spawn("/usr/bin/python3", [scriptPath, mode], { timeout: 90_000, shell: false });
+    const args = [scriptPath, mode];
+    if (crop) args.push(JSON.stringify(crop));
+    console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode} crop=${crop ? "yes" : "no"}`);
+    const proc = spawn("/usr/bin/python3", args, { timeout: 90_000, shell: false });
 
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
@@ -57,12 +60,21 @@ async function uploadToCloudinary(pngBuffer: Buffer): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { url?: string; mode?: Mode };
-  const { url, mode = "remove-bg" } = body;
+  const body = (await req.json()) as { url?: string; mode?: Mode; crop?: CropRect };
+  const { url, mode = "remove-bg", crop } = body;
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
+
+  // Ignore a full-frame or invalid crop — treat as no crop
+  const validCrop =
+    crop &&
+    [crop.x, crop.y, crop.w, crop.h].every((n) => typeof n === "number" && n >= 0 && n <= 1) &&
+    crop.w > 0.02 && crop.h > 0.02 &&
+    !(crop.x === 0 && crop.y === 0 && crop.w === 1 && crop.h === 1)
+      ? crop
+      : undefined;
 
   let imageBuffer: Buffer;
   try {
@@ -79,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   let pngBuffer: Buffer;
   try {
-    pngBuffer = await processImage(imageBuffer, mode);
+    pngBuffer = await processImage(imageBuffer, mode, validCrop);
   } catch (err) {
     return NextResponse.json({ error: `Image processing failed: ${String(err)}` }, { status: 500 });
   }

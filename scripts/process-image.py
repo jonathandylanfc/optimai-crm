@@ -10,7 +10,24 @@ Usage:
 
 import sys
 import io
+import json
 from PIL import Image
+
+def apply_crop(img_bytes: bytes, crop: dict) -> bytes:
+    """Crop to a normalized rect {x, y, w, h} (fractions 0-1) before processing.
+    Lets the user isolate one item in a photo that has several."""
+    img = Image.open(io.BytesIO(img_bytes))
+    W, H = img.size
+    left = max(0, int(crop.get("x", 0) * W))
+    top = max(0, int(crop.get("y", 0) * H))
+    right = min(W, int((crop.get("x", 0) + crop.get("w", 1)) * W))
+    bottom = min(H, int((crop.get("y", 0) + crop.get("h", 1)) * H))
+    if right - left < 2 or bottom - top < 2:
+        return img_bytes  # degenerate selection — fall back to whole image
+    cropped = img.crop((left, top, right, bottom))
+    out = io.BytesIO()
+    cropped.convert("RGBA").save(out, format="PNG")
+    return out.getvalue()
 
 def remove_bg(img_bytes: bytes) -> bytes:
     from rembg import remove
@@ -68,7 +85,14 @@ def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
 
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "remove-bg"
+    crop_arg = sys.argv[2] if len(sys.argv) > 2 else None
     raw = sys.stdin.buffer.read()
+    if crop_arg:
+        try:
+            crop = json.loads(crop_arg)
+            raw = apply_crop(raw, crop)
+        except Exception as e:  # noqa: BLE001
+            print(f"crop skipped: {e}", file=sys.stderr)
     if mode == "enhance":
         sys.stdout.buffer.write(enhance(raw))
     else:

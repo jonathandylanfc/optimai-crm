@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Package, Search, Plus, DollarSign, Tag, Eye, EyeOff,
-  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors,
+  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors, Crop as CropIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -60,6 +60,128 @@ async function uploadToCloudinary(file: File): Promise<string> {
   return data.secure_url as string;
 }
 
+type CropRect = { x: number; y: number; w: number; h: number };
+
+function CropModal({
+  src,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  src: string;
+  busy: "remove-bg" | "enhance" | null;
+  onCancel: () => void;
+  onConfirm: (mode: "remove-bg" | "enhance", crop: CropRect) => void;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Selection box in pixels, relative to the rendered image
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+
+  function relative(e: React.MouseEvent) {
+    const img = imgRef.current;
+    if (!img) return { x: 0, y: 0 };
+    const b = img.getBoundingClientRect();
+    return {
+      x: Math.min(Math.max(e.clientX - b.left, 0), b.width),
+      y: Math.min(Math.max(e.clientY - b.top, 0), b.height),
+    };
+  }
+
+  function onMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    const p = relative(e);
+    startRef.current = p;
+    setDrawing(true);
+    setBox({ x: p.x, y: p.y, w: 0, h: 0 });
+  }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!drawing || !startRef.current) return;
+    const p = relative(e);
+    const s = startRef.current;
+    setBox({ x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) });
+  }
+  function onMouseUp() {
+    setDrawing(false);
+  }
+
+  function confirm(mode: "remove-bg" | "enhance") {
+    const img = imgRef.current;
+    if (!img || !box || box.w < 6 || box.h < 6) {
+      // No usable selection — process the whole image
+      onConfirm(mode, { x: 0, y: 0, w: 1, h: 1 });
+      return;
+    }
+    const b = img.getBoundingClientRect();
+    onConfirm(mode, {
+      x: box.x / b.width,
+      y: box.y / b.height,
+      w: box.w / b.width,
+      h: box.h / b.height,
+    });
+  }
+
+  const hasSelection = !!box && box.w >= 6 && box.h >= 6;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !busy) onCancel(); }}>
+      <DialogContent className="bg-card border-border sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Select the item to keep</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-1">
+          Drag a box around the one item you want. Everything outside the box is discarded before the background is removed.
+        </p>
+        <div className="relative select-none overflow-hidden rounded-lg border border-border bg-secondary/40 flex items-center justify-center" style={{ maxHeight: "55vh" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            ref={imgRef}
+            src={src}
+            alt=""
+            draggable={false}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
+            className="max-h-[55vh] w-auto object-contain cursor-crosshair"
+          />
+          {box && (
+            <div
+              className="pointer-events-none absolute border-2 border-accent bg-accent/10"
+              style={{ left: box.x, top: box.y, width: box.w, height: box.h,
+                // offset by the image's position within the flex container
+                transform: `translate(${(imgRef.current?.offsetLeft ?? 0)}px, ${(imgRef.current?.offsetTop ?? 0)}px)` }}
+            />
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setBox(null)}
+            disabled={!box || !!busy}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            Reset selection
+          </button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onCancel} disabled={!!busy}>Cancel</Button>
+            <Button
+              size="sm"
+              onClick={() => confirm("remove-bg")}
+              disabled={!!busy}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              <Scissors className="w-3.5 h-3.5 mr-1.5" />
+              {busy === "remove-bg" ? "Processing…" : hasSelection ? "Remove BG from selection" : "Remove BG (whole image)"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MultiImageUploader({
   images,
   coverUrl,
@@ -76,6 +198,7 @@ function MultiImageUploader({
   const [urlInput, setUrlInput] = useState("");
   const [processing, setProcessing] = useState<"remove-bg" | "enhance" | null>(null);
   const [aiError, setAiError] = useState("");
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFiles(files: FileList) {
@@ -106,7 +229,7 @@ function MultiImageUploader({
     setUrlInput("");
   }
 
-  async function runAi(mode: "remove-bg" | "enhance") {
+  async function runAi(mode: "remove-bg" | "enhance", crop?: { x: number; y: number; w: number; h: number }) {
     const source = urlInput.trim() || coverUrl.trim();
     if (!source) return;
     try {
@@ -122,7 +245,7 @@ function MultiImageUploader({
       const res = await fetch("/api/store/remove-bg", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: source, mode }),
+        body: JSON.stringify({ url: source, mode, ...(crop ? { crop } : {}) }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
@@ -133,12 +256,27 @@ function MultiImageUploader({
         onImagesChange(next);
         onCoverChange(url);
         setUrlInput("");
+        setCropSrc(null);
       }
     } catch {
       setAiError("Request failed");
     } finally {
       setProcessing(null);
     }
+  }
+
+  function openCrop() {
+    const source = urlInput.trim() || coverUrl.trim();
+    if (!source) return;
+    try {
+      const parsed = new URL(source);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
+    } catch {
+      setAiError("Please enter a full image URL starting with https://");
+      return;
+    }
+    setAiError("");
+    setCropSrc(source);
   }
 
   function removeImage(url: string) {
@@ -194,12 +332,31 @@ function MultiImageUploader({
             <Sparkles className="w-3.5 h-3.5" />
             {processing === "enhance" ? "Processing…" : "Enhance for Selling"}
           </button>
+          <button
+            type="button"
+            onClick={openCrop}
+            disabled={aiBusy || !hasAiSource}
+            title="Pick one item from a photo with several, then remove its background"
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-secondary disabled:opacity-40"
+          >
+            <CropIcon className="w-3.5 h-3.5" />
+            Crop & Remove
+          </button>
         </div>
         {aiBusy && (
           <p className="text-[11px] text-muted-foreground/60">Takes ~15–30 s on first use while the AI model loads…</p>
         )}
         {aiError && <p className="text-xs text-destructive">{aiError}</p>}
       </div>
+
+      {cropSrc && (
+        <CropModal
+          src={cropSrc}
+          busy={processing}
+          onCancel={() => setCropSrc(null)}
+          onConfirm={(mode, crop) => runAi(mode, crop)}
+        />
+      )}
 
       {/* Photo grid */}
       {allImages.length > 0 && (
