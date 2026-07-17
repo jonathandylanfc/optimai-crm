@@ -431,6 +431,7 @@ function ProductForm({
 
 export function ProductsSection() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CAProduct | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CAProduct | null>(null);
@@ -441,10 +442,14 @@ export function ProductsSection() {
   const updateProduct = useUpdateCAProduct();
   const [isDeleting, startDeleteTransition] = useTransition();
 
-  const filtered = (products ?? []).filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const categories = ["All", ...Array.from(new Set((products ?? []).map((p) => p.category))).sort()];
+
+  const filtered = (products ?? []).filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeCategory === "All" || p.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const totalProducts = (products ?? []).length;
   const activeCount = (products ?? []).filter((p) => p.active).length;
@@ -526,6 +531,36 @@ export function ProductsSection() {
           Add Product
         </Button>
       </div>
+
+      {/* Category tabs */}
+      {!isLoading && categories.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {categories.map((cat) => {
+            const count = cat === "All"
+              ? (products ?? []).length
+              : (products ?? []).filter((p) => p.category === cat).length;
+            const isActive = activeCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                }`}
+              >
+                {cat}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  isActive ? "bg-accent-foreground/20 text-accent-foreground" : "bg-border text-muted-foreground"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Product grid */}
       {isLoading ? (
