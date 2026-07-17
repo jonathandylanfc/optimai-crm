@@ -287,6 +287,70 @@ function MultiImageUploader({
   );
 }
 
+function VariantImagePicker({
+  url,
+  onChange,
+}: {
+  url: string | null;
+  onChange: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const uploaded = await uploadToCloudinary(file);
+      onChange(uploaded);
+    } catch {
+      /* surfaced by empty thumbnail */
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        title={url ? "Change variant photo" : "Add a photo for this variant"}
+        className="relative w-9 h-9 shrink-0 rounded-md border border-border bg-secondary overflow-hidden flex items-center justify-center hover:border-accent transition-colors"
+      >
+        {uploading ? (
+          <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        ) : url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
+        )}
+      </button>
+      {url && !uploading && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          title="Remove variant photo"
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.[0]) handleFile(e.target.files[0]);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
 function VariantsEditor({
   variants,
   onChange,
@@ -321,7 +385,8 @@ function VariantsEditor({
         <p className="text-xs text-muted-foreground/50 italic">No variants — product has a single price and stock.</p>
       )}
       {variants.map((v, i) => (
-        <div key={i} className="grid grid-cols-[1fr_100px_80px_28px] gap-1.5 items-center">
+        <div key={i} className="grid grid-cols-[36px_1fr_90px_70px_28px] gap-1.5 items-center">
+          <VariantImagePicker url={v.imageUrl} onChange={(url) => update(i, "imageUrl", url)} />
           <input
             type="text"
             value={v.name}
@@ -359,7 +424,7 @@ function VariantsEditor({
         </div>
       ))}
       {variants.length > 0 && (
-        <p className="text-[10px] text-muted-foreground/50">Leave price blank to use the product&apos;s base price.</p>
+        <p className="text-[10px] text-muted-foreground/50">Tap the thumbnail to set a photo shown when this variant is selected. Leave price blank to use the product&apos;s base price.</p>
       )}
     </div>
   );
