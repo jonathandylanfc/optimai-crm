@@ -741,7 +741,14 @@ export function ProductsSection() {
                     ${(product.priceCents / 100).toFixed(2)}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Stock: {product.stock}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-muted-foreground">Stock: {product.stock}</p>
+                  {(product.variants?.length ?? 0) > 0 && (
+                    <span className="text-[10px] font-medium text-accent bg-accent/10 px-1.5 py-0.5 rounded">
+                      {product.variants.length} variants
+                    </span>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

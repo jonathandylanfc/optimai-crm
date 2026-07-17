@@ -9,14 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ShoppingCart, Search, DollarSign, Clock, CheckCircle2,
-  XCircle, MoreHorizontal, Filter,
+  XCircle, MoreHorizontal, Filter, Truck, PackageCheck,
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +67,7 @@ type StoreOrder = {
   status: StoreStatus;
   totalCents: number;
   shippingAddress: string;
+  trackingNumber: string | null;
   createdAt: string;
   items: { productName: string; quantity: number; priceCents: number }[];
 };
@@ -77,6 +85,10 @@ export function OrdersSection() {
   const [selectedStatus, setSelectedStatus] = useState<CrmStatus | null>(null);
   const [cancelTarget, setCancelTarget] = useState<DisplayOrder | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [shipTarget, setShipTarget] = useState<DisplayOrder | null>(null);
+  const [trackingInput, setTrackingInput] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState("");
 
   const { data: raw, isLoading, refetch } = useQuery({
     queryKey: ["ca-orders"],
@@ -102,6 +114,42 @@ export function OrdersSection() {
   const pendingCount = orders.filter((o) => o.crmStatus === "pending").length;
   const fulfilledCount = orders.filter((o) => o.crmStatus === "fulfilled").length;
   const fulfillmentRate = orders.length ? Math.round((fulfilledCount / orders.length) * 100) : 0;
+
+  async function updateStoreOrder(storeOrderId: number, payload: { status?: StoreStatus; trackingNumber?: string | null }) {
+    setIsUpdating(true);
+    setUpdateError("");
+    try {
+      const res = await fetch("/api/orders/update-store-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeOrderId, ...payload }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setUpdateError(data.error ?? "Update failed");
+        return false;
+      }
+      await refetch();
+      return true;
+    } catch {
+      setUpdateError("Network error");
+      return false;
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function confirmShip() {
+    if (!shipTarget) return;
+    const ok = await updateStoreOrder(shipTarget.id, {
+      status: "shipped",
+      trackingNumber: trackingInput.trim() || null,
+    });
+    if (ok) {
+      setShipTarget(null);
+      setTrackingInput("");
+    }
+  }
 
   async function confirmCancel() {
     if (!cancelTarget) return;
@@ -240,8 +288,11 @@ export function OrdersSection() {
                       <td className="px-4 py-3">
                         <Badge className={`${STATUS_COLORS[order.crmStatus]} border flex items-center gap-1 w-fit capitalize`}>
                           <StatusIcon className="w-3 h-3" />
-                          {order.crmStatus}
+                          {order.status === "shipped" ? "shipped" : order.crmStatus}
                         </Badge>
+                        {order.trackingNumber && (
+                          <p className="text-[10px] font-mono text-muted-foreground mt-1">{order.trackingNumber}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
                         {new Date(order.createdAt).toLocaleDateString("en-US", {
@@ -251,14 +302,32 @@ export function OrdersSection() {
                         })}
                       </td>
                       <td className="px-4 py-3">
-                        {order.crmStatus !== "cancelled" && (
+                        {order.crmStatus !== "cancelled" && order.status !== "delivered" && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="w-7 h-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuContent align="end" className="w-48">
+                              {(order.status === "pending" || order.status === "processing") && (
+                                <DropdownMenuItem
+                                  onClick={() => { setTrackingInput(order.trackingNumber ?? ""); setUpdateError(""); setShipTarget(order); }}
+                                >
+                                  <Truck className="w-3.5 h-3.5 mr-2" />
+                                  Mark Shipped…
+                                </DropdownMenuItem>
+                              )}
+                              {order.status === "shipped" && (
+                                <DropdownMenuItem
+                                  onClick={() => updateStoreOrder(order.id, { status: "delivered" })}
+                                  disabled={isUpdating}
+                                >
+                                  <PackageCheck className="w-3.5 h-3.5 mr-2" />
+                                  Mark Delivered
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-chart-3 focus:text-chart-3"
                                 onClick={() => setCancelTarget(order)}
@@ -278,6 +347,43 @@ export function OrdersSection() {
           </table>
         </div>
       </Card>
+
+      <Dialog open={!!shipTarget} onOpenChange={(o) => { if (!o) { setShipTarget(null); setTrackingInput(""); setUpdateError(""); } }}>
+        <DialogContent className="bg-card border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark order #{shipTarget?.id} as shipped</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              {shipTarget?.customerName} will receive a shipping notification email
+              {trackingInput.trim() ? " with the tracking number below" : ""}.
+            </p>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-muted-foreground">Tracking number <span className="text-xs text-muted-foreground/60">(optional)</span></label>
+              <Input
+                value={trackingInput}
+                onChange={(e) => setTrackingInput(e.target.value)}
+                placeholder="e.g. 9400 1000 0000 0000 0000 00"
+                className="bg-secondary border-border focus:border-accent font-mono"
+              />
+            </div>
+            {updateError && <p className="text-sm text-destructive">{updateError}</p>}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => { setShipTarget(null); setTrackingInput(""); }} disabled={isUpdating}>
+                Back
+              </Button>
+              <Button
+                onClick={confirmShip}
+                disabled={isUpdating}
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
+              >
+                <Truck className="w-4 h-4 mr-2" />
+                {isUpdating ? "Updating…" : "Mark Shipped"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}>
         <AlertDialogContent className="bg-card border-border">
