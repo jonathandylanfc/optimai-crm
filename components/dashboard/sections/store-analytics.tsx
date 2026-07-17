@@ -104,12 +104,24 @@ function StatCard({
 
 type StoreTab = "overview" | "products" | "reviews";
 
+const STORE_TABS: StoreTab[] = ["overview", "products", "reviews"];
+
 export function StoreAnalyticsSection() {
-  const [tab, setTab] = useState<StoreTab>("overview");
+  const [tab, setTab] = useState<StoreTab>(() => {
+    if (typeof window === "undefined") return "overview";
+    const sub = window.location.hash.slice(1).split("/")[1] as StoreTab;
+    return STORE_TABS.includes(sub) ? sub : "overview";
+  });
+
+  function changeTab(next: StoreTab) {
+    setTab(next);
+    // Persist the sub-tab in the hash so a refresh lands on the same view
+    window.location.hash = next === "overview" ? "store" : `store/${next}`;
+  }
 
   return (
     <div className="space-y-4">
-      <SubTabs active={tab} onChange={setTab} />
+      <SubTabs active={tab} onChange={changeTab} />
       {tab === "overview" && <StoreOverview />}
       {tab === "products" && <ProductsSection />}
       {tab === "reviews" && <ReviewsSection />}

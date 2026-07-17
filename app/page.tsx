@@ -21,7 +21,8 @@ const validSections: Section[] = ["overview", "pipeline", "deals", "orders", "st
 export default function Dashboard() {
   const [activeSection, setActiveSection] = useState<Section>(() => {
     if (typeof window === "undefined") return "overview";
-    const hash = window.location.hash.slice(1) as Section;
+    // Hash may carry a sub-tab (e.g. "store/products") — the section is the first segment
+    const hash = window.location.hash.slice(1).split("/")[0] as Section;
     return validSections.includes(hash) ? hash : "overview";
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
