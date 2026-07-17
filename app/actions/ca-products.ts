@@ -10,6 +10,22 @@ function headers() {
   };
 }
 
+export interface CAVariant {
+  id: number;
+  name: string;
+  priceCents: number | null;
+  stock: number;
+  imageUrl: string | null;
+  sortOrder: number;
+}
+
+export interface CAVariantPayload {
+  name: string;
+  priceCents: number | null;
+  stock: number;
+  imageUrl: string | null;
+}
+
 export interface CAProduct {
   id: number;
   name: string;
@@ -22,6 +38,7 @@ export interface CAProduct {
   popular: boolean;
   active: boolean;
   createdAt: string;
+  variants: CAVariant[];
 }
 
 export interface CAProductPayload {
@@ -34,6 +51,7 @@ export interface CAProductPayload {
   stock: number;
   popular: boolean;
   active: boolean;
+  variants: CAVariantPayload[];
 }
 
 export async function fetchCAProducts(): Promise<CAProduct[]> {

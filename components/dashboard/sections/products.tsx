@@ -39,7 +39,7 @@ import {
   useUpdateCAProduct,
   useDeleteCAProduct,
 } from "@/lib/hooks/use-ca-products";
-import type { CAProduct, CAProductPayload } from "@/app/actions/ca-products";
+import type { CAProduct, CAProductPayload, CAVariantPayload } from "@/app/actions/ca-products";
 
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "v4h2yok3";
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "OPTIMAI";
@@ -287,6 +287,84 @@ function MultiImageUploader({
   );
 }
 
+function VariantsEditor({
+  variants,
+  onChange,
+}: {
+  variants: CAVariantPayload[];
+  onChange: (v: CAVariantPayload[]) => void;
+}) {
+  function add() {
+    onChange([...variants, { name: "", priceCents: null, stock: 50, imageUrl: null }]);
+  }
+  function remove(i: number) {
+    onChange(variants.filter((_, idx) => idx !== i));
+  }
+  function update(i: number, field: keyof CAVariantPayload, value: string | number | null) {
+    const next = variants.map((v, idx) => idx === i ? { ...v, [field]: value } : v);
+    onChange(next);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-muted-foreground">Variants <span className="text-xs text-muted-foreground/60">(colors, sizes, etc.)</span></label>
+        <button
+          type="button"
+          onClick={add}
+          className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add variant
+        </button>
+      </div>
+      {variants.length === 0 && (
+        <p className="text-xs text-muted-foreground/50 italic">No variants — product has a single price and stock.</p>
+      )}
+      {variants.map((v, i) => (
+        <div key={i} className="grid grid-cols-[1fr_100px_80px_28px] gap-1.5 items-center">
+          <input
+            type="text"
+            value={v.name}
+            onChange={(e) => update(i, "name", e.target.value)}
+            placeholder="Name (e.g. Black, Medium)"
+            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+          />
+          <input
+            type="number"
+            min={0.01}
+            step={0.01}
+            value={v.priceCents !== null ? (v.priceCents / 100).toFixed(2) : ""}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              update(i, "priceCents", isNaN(val) ? null : Math.round(val * 100));
+            }}
+            placeholder="Price"
+            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+          />
+          <input
+            type="number"
+            min={0}
+            value={v.stock}
+            onChange={(e) => update(i, "stock", parseInt(e.target.value, 10) || 0)}
+            placeholder="Stock"
+            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+      {variants.length > 0 && (
+        <p className="text-[10px] text-muted-foreground/50">Leave price blank to use the product&apos;s base price.</p>
+      )}
+    </div>
+  );
+}
+
 function ProductForm({
   open,
   onClose,
@@ -300,6 +378,9 @@ function ProductForm({
   const updateProduct = useUpdateCAProduct();
   const [imageUrl, setImageUrl] = useState(editProduct?.imageUrl ?? "");
   const [images, setImages] = useState<string[]>(editProduct?.images ?? []);
+  const [variants, setVariants] = useState<CAVariantPayload[]>(
+    editProduct?.variants?.map((v) => ({ name: v.name, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl })) ?? []
+  );
   const [isPending, startTransition] = useTransition();
   const isEditing = !!editProduct;
 
@@ -314,6 +395,10 @@ function ProductForm({
     const nextImages = editProduct?.images ?? [];
     if (JSON.stringify(images) !== JSON.stringify(nextImages)) {
       setImages(nextImages);
+    }
+    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl })) ?? [];
+    if (JSON.stringify(variants) !== JSON.stringify(nextVariants)) {
+      setVariants(nextVariants);
     }
   }
 
@@ -331,6 +416,7 @@ function ProductForm({
       stock: parseInt(fd.get("stock") as string, 10) || 0,
       popular: fd.get("popular") === "on",
       active: fd.get("active") === "on",
+      variants,
     };
     startTransition(async () => {
       if (isEditing) {
@@ -398,6 +484,8 @@ function ProductForm({
               <Input name="stock" type="number" min={0} defaultValue={editProduct?.stock ?? 0} className={inputClass} />
             </div>
           </div>
+
+          <VariantsEditor variants={variants} onChange={setVariants} />
 
           <div className="flex items-center gap-6 pt-1">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
