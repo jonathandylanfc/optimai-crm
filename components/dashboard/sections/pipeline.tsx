@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Plus, MoreHorizontal, Clock, DollarSign, User, Building2 } from "lucide-react";
 import { usePipeline, usePipelineRealtime } from "@/lib/hooks/use-pipeline";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DealForm } from "@/components/dashboard/deal-form";
 
 const STAGE_ORDER = ["Lead", "Qualified", "Proposal", "Negotiation"];
 
@@ -68,6 +70,7 @@ function DealCard({ deal, index }: { deal: DealRow; index: number }) {
 export function PipelineSection() {
   const { data: rawDeals, isLoading, refetch } = usePipeline();
   usePipelineRealtime(refetch);
+  const [formStage, setFormStage] = useState<string | null>(null);
 
   const stages = STAGE_ORDER.map((stageName) => {
     const stageDeals = (rawDeals ?? []).filter((d: { stage: string }) => d.stage === stageName);
@@ -79,7 +82,10 @@ export function PipelineSection() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Manage and track your sales pipeline</p>
-        <button className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors duration-200">
+        <button
+          onClick={() => setFormStage("Lead")}
+          className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors duration-200"
+        >
           <Plus className="w-4 h-4" />
           Add Deal
         </button>
@@ -114,13 +120,20 @@ export function PipelineSection() {
                   ); })}
             </div>
 
-            <button className="w-full mt-3 flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-accent/50 hover:bg-secondary/50 transition-all duration-200">
+            <button
+              onClick={() => setFormStage(stage.name)}
+              className="w-full mt-3 flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-accent/50 hover:bg-secondary/50 transition-all duration-200"
+            >
               <Plus className="w-4 h-4" />
               Add deal
             </button>
           </div>
         ))}
       </div>
+
+      {formStage !== null && (
+        <DealForm open onClose={() => setFormStage(null)} defaultStage={formStage} />
+      )}
     </div>
   );
 }

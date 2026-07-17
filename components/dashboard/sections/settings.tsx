@@ -1,555 +1,237 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  User,
-  Bell,
-  Shield,
-  Palette,
-  Link2,
+  Store,
   Database,
-  Mail,
-  Smartphone,
-  Globe,
-  Key,
+  Wand2,
+  ImageIcon,
   RefreshCw,
-  Check,
+  CheckCircle2,
+  XCircle,
   ExternalLink,
-  Zap,
+  ArrowDownUp,
 } from "lucide-react";
 
-const integrations = [
-  {
-    id: "salesforce",
-    name: "Salesforce",
-    description: "Sync contacts and opportunities",
-    connected: false,
-    lastSync: null,
-  },
-  {
-    id: "hubspot",
-    name: "HubSpot",
-    description: "Marketing automation and CRM",
-    connected: false,
-    lastSync: null,
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Team notifications and alerts",
-    connected: false,
-    lastSync: null,
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    description: "Email tracking and sync",
-    connected: false,
-    lastSync: null,
-  },
-  {
-    id: "calendar",
-    name: "Google Calendar",
-    description: "Meeting scheduling",
-    connected: false,
-    lastSync: null,
-  },
-  {
-    id: "zoom",
-    name: "Zoom",
-    description: "Video conferencing integration",
-    connected: false,
-    lastSync: null,
-  },
-];
+type ServiceStatus = { ok: boolean; configured?: boolean; url?: string | null; error: string | null };
 
-const notificationSettings = [
-  {
-    id: "deal_updates",
-    label: "Deal Updates",
-    description: "Get notified when deals change status",
-    email: true,
-    push: true,
-  },
-  {
-    id: "team_activity",
-    label: "Team Activity",
-    description: "Updates on team performance and milestones",
-    email: true,
-    push: false,
-  },
-  {
-    id: "pipeline_alerts",
-    label: "Pipeline Alerts",
-    description: "Alerts for pipeline changes and risks",
-    email: true,
-    push: true,
-  },
-  {
-    id: "forecast_updates",
-    label: "Forecast Updates",
-    description: "Weekly forecast summary reports",
-    email: true,
-    push: false,
-  },
-  {
-    id: "customer_health",
-    label: "Customer Health",
-    description: "Alerts when customer health scores drop",
-    email: false,
-    push: true,
-  },
-];
+type StatusResponse = {
+  store: ServiceStatus;
+  supabase: ServiceStatus;
+  ai: ServiceStatus;
+  cloudinary: ServiceStatus;
+};
+
+function StatusBadge({ ok }: { ok: boolean }) {
+  return ok ? (
+    <Badge className="bg-accent/20 text-accent border-accent/30 flex items-center gap-1">
+      <CheckCircle2 className="w-3 h-3" />
+      Connected
+    </Badge>
+  ) : (
+    <Badge className="bg-destructive/20 text-destructive border-destructive/30 flex items-center gap-1">
+      <XCircle className="w-3 h-3" />
+      Not working
+    </Badge>
+  );
+}
 
 export function SettingsSection() {
-  const [activeTab, setActiveTab] = useState("profile");
-  const [notifications, setNotifications] = useState(notificationSettings);
-  const [isSaving, setIsSaving] = useState(false);
+  const qc = useQueryClient();
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
-  const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 1500);
-  };
+  const { data: status, isLoading, refetch, isFetching } = useQuery<StatusResponse>({
+    queryKey: ["settings-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/status");
+      if (!res.ok) throw new Error("Status check failed");
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
 
-  const toggleNotification = (id: string, type: "email" | "push") => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, [type]: !n[type] } : n))
-    );
-  };
+  async function runSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/orders/sync-store", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncResult(`Sync failed: ${data.error ?? res.status}`);
+      } else {
+        setSyncResult(`Done — ${data.synced} new order${data.synced === 1 ? "" : "s"} synced, ${data.skipped} already up to date.`);
+        qc.invalidateQueries({ queryKey: ["ca-orders"] });
+        qc.invalidateQueries({ queryKey: ["overview"] });
+      }
+    } catch {
+      setSyncResult("Sync failed: network error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const services = status
+    ? [
+        {
+          id: "store",
+          name: "Car Accessories Store",
+          description: status.store.url ?? "Storefront API connection",
+          icon: Store,
+          ok: status.store.ok,
+          error: status.store.error,
+        },
+        {
+          id: "supabase",
+          name: "Supabase (CRM Database)",
+          description: "Customers, deals, orders, team",
+          icon: Database,
+          ok: status.supabase.ok,
+          error: status.supabase.error,
+        },
+        {
+          id: "ai",
+          name: "AI Image Processing",
+          description: "Background removal & enhancement (rembg)",
+          icon: Wand2,
+          ok: status.ai.ok,
+          error: status.ai.error,
+        },
+        {
+          id: "cloudinary",
+          name: "Cloudinary",
+          description: "Product image hosting",
+          icon: ImageIcon,
+          ok: status.cloudinary.ok,
+          error: status.cloudinary.error,
+        },
+      ]
+    : [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">Settings</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your account preferences and integrations
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Settings</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Connection health and data tools for your store + CRM
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+          Re-check
+        </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="overflow-x-auto">
-          <TabsList className="bg-secondary border border-border p-1 min-w-max">
-            <TabsTrigger
-              value="profile"
-              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-            >
-              <User className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Profile</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="notifications"
-              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-            >
-              <Bell className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Notifications</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="integrations"
-              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-            >
-              <Link2 className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Integrations</span>
-            </TabsTrigger>
-            <TabsTrigger
-              value="security"
-              className="data-[state=active]:bg-card data-[state=active]:text-foreground"
-            >
-              <Shield className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Security</span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* Profile Tab */}
-        <TabsContent value="profile" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Personal Information</CardTitle>
-              <CardDescription>Update your personal details and preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-6">
-                <Avatar className="w-20 h-20 bg-secondary">
-                  <AvatarFallback className="bg-accent text-accent-foreground text-2xl font-semibold">
-                    JD
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm">
-                    Change Avatar
-                  </Button>
-                  <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max 2MB.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="First name"
-                    className="bg-secondary border-border focus:border-accent"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Last name"
-                    className="bg-secondary border-border focus:border-accent"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    className="bg-secondary border-border focus:border-accent"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select defaultValue="manager">
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="manager">Sales Manager</SelectItem>
-                      <SelectItem value="rep">Sales Representative</SelectItem>
-                      <SelectItem value="viewer">Viewer</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="timezone">Timezone</Label>
-                <Select defaultValue="pst">
-                  <SelectTrigger className="bg-secondary border-border w-full md:w-[300px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pst">Pacific Time (PT)</SelectItem>
-                    <SelectItem value="mst">Mountain Time (MT)</SelectItem>
-                    <SelectItem value="cst">Central Time (CT)</SelectItem>
-                    <SelectItem value="est">Eastern Time (ET)</SelectItem>
-                    <SelectItem value="utc">UTC</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Display Preferences</CardTitle>
-              <CardDescription>Customize how data is displayed</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Palette className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-foreground">Dark Mode</p>
-                    <p className="text-sm text-muted-foreground">Use dark theme for the interface</p>
+      {/* Connections */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-base font-medium">Connections</CardTitle>
+          <CardDescription>Live status of every service this dashboard depends on</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)
+              : services.map((service, index) => (
+                  <div
+                    key={service.id}
+                    className="p-4 rounded-lg border border-border bg-secondary/30 hover:border-muted-foreground/30 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
+                    style={{ animationDelay: `${index * 75}ms` }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${service.ok ? "bg-accent/20" : "bg-destructive/10"}`}>
+                          <service.icon className={`w-5 h-5 ${service.ok ? "text-accent" : "text-destructive"}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{service.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">{service.description}</p>
+                        </div>
+                      </div>
+                      <StatusBadge ok={service.ok} />
+                    </div>
+                    {!service.ok && service.error && (
+                      <p className="mt-3 text-xs text-destructive/80 font-mono bg-destructive/5 rounded px-2 py-1.5 break-all">
+                        {service.error}
+                      </p>
+                    )}
                   </div>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Globe className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-foreground">Currency Format</p>
-                    <p className="text-sm text-muted-foreground">Display currency in your locale</p>
-                  </div>
-                </div>
-                <Select defaultValue="usd">
-                  <SelectTrigger className="w-[120px] bg-secondary border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="usd">USD ($)</SelectItem>
-                    <SelectItem value="eur">EUR (€)</SelectItem>
-                    <SelectItem value="gbp">GBP (£)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Database className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-foreground">Compact View</p>
-                    <p className="text-sm text-muted-foreground">Show more data in less space</p>
-                  </div>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
+                ))}
+          </div>
+        </CardContent>
+      </Card>
 
-          <div className="flex justify-end">
+      {/* Data tools */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="text-base font-medium">Data Tools</CardTitle>
+          <CardDescription>Keep the CRM in sync with the storefront</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
+                <ArrowDownUp className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Sync store orders</p>
+                <p className="text-sm text-muted-foreground">
+                  Import any store orders missing from the CRM (new orders sync automatically)
+                </p>
+              </div>
+            </div>
             <Button
-              onClick={handleSave}
+              onClick={runSync}
+              disabled={syncing}
               className="bg-accent hover:bg-accent/90 text-accent-foreground"
-              disabled={isSaving}
             >
-              {isSaving ? (
+              {syncing ? (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
+                  Syncing…
                 </>
               ) : (
-                <>
-                  <Check className="w-4 h-4 mr-2" />
-                  Save Changes
-                </>
+                "Run Sync"
               )}
             </Button>
           </div>
-        </TabsContent>
+          {syncResult && (
+            <p className={`text-sm px-1 ${syncResult.startsWith("Done") ? "text-accent" : "text-destructive"}`}>
+              {syncResult}
+            </p>
+          )}
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Notification Preferences</CardTitle>
-              <CardDescription>Choose how and when you want to be notified</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                <div className="grid grid-cols-[1fr,80px,80px] gap-4 pb-3 border-b border-border text-sm text-muted-foreground">
-                  <span>Notification Type</span>
-                  <span className="text-center flex items-center justify-center gap-1.5">
-                    <Mail className="w-4 h-4" />
-                    Email
-                  </span>
-                  <span className="text-center flex items-center justify-center gap-1.5">
-                    <Smartphone className="w-4 h-4" />
-                    Push
-                  </span>
-                </div>
-                {notifications.map((notification, index) => (
-                  <div
-                    key={notification.id}
-                    className="grid grid-cols-[1fr,80px,80px] gap-4 py-4 border-b border-border last:border-0 animate-in fade-in slide-in-from-left-2"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{notification.label}</p>
-                      <p className="text-sm text-muted-foreground">{notification.description}</p>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      <Switch
-                        checked={notification.email}
-                        onCheckedChange={() => toggleNotification(notification.id, "email")}
-                      />
-                    </div>
-                    <div className="flex items-center justify-center">
-                      <Switch
-                        checked={notification.push}
-                        onCheckedChange={() => toggleNotification(notification.id, "push")}
-                      />
-                    </div>
-                  </div>
-                ))}
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30 border border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                <Store className="w-5 h-5 text-muted-foreground" />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Integrations Tab */}
-        <TabsContent value="integrations" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Connected Services</CardTitle>
-              <CardDescription>Manage your third-party integrations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {integrations.map((integration, index) => (
-                  <div
-                    key={integration.id}
-                    className={`p-4 rounded-lg border transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${
-                      integration.connected
-                        ? "bg-secondary/50 border-border hover:border-accent/50"
-                        : "bg-secondary/20 border-border hover:border-muted-foreground/30"
-                    }`}
-                    style={{ animationDelay: `${index * 75}ms` }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            integration.connected ? "bg-accent/20" : "bg-muted"
-                          }`}
-                        >
-                          <Zap
-                            className={`w-5 h-5 ${
-                              integration.connected ? "text-accent" : "text-muted-foreground"
-                            }`}
-                          />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{integration.name}</p>
-                          <p className="text-sm text-muted-foreground">{integration.description}</p>
-                        </div>
-                      </div>
-                      <Badge
-                        className={
-                          integration.connected
-                            ? "bg-accent/20 text-accent border-accent/30"
-                            : "bg-muted text-muted-foreground border-border"
-                        }
-                      >
-                        {integration.connected ? "Connected" : "Not connected"}
-                      </Badge>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between">
-                      {integration.connected ? (
-                        <>
-                          <span className="text-xs text-muted-foreground">
-                            Last sync: {integration.lastSync}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" className="h-8">
-                              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                              Sync
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 text-destructive hover:text-destructive">
-                              Disconnect
-                            </Button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-xs text-muted-foreground">Not configured</span>
-                          <Button
-                            size="sm"
-                            className="h-8 bg-accent hover:bg-accent/90 text-accent-foreground"
-                          >
-                            Connect
-                            <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <p className="font-medium text-foreground">Open storefront</p>
+                <p className="text-sm text-muted-foreground">View the live car accessories store</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Security Tab */}
-        <TabsContent value="security" className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Password & Authentication</CardTitle>
-              <CardDescription>Manage your account security settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    className="bg-secondary border-border focus:border-accent max-w-md"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    className="bg-secondary border-border focus:border-accent max-w-md"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    className="bg-secondary border-border focus:border-accent max-w-md"
-                  />
-                </div>
-                <Button variant="outline">Update Password</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Two-Factor Authentication</CardTitle>
-              <CardDescription>Add an extra layer of security to your account</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
-                    <Key className="w-5 h-5 text-accent" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Authenticator App</p>
-                    <p className="text-sm text-muted-foreground">
-                      Use an authenticator app for 2FA codes
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge className="bg-muted text-muted-foreground border-border">Not set up</Badge>
-                  <Button variant="outline" size="sm">
-                    Enable
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border bg-card">
-            <CardHeader>
-              <CardTitle className="text-base font-medium">Active Sessions</CardTitle>
-              <CardDescription>Manage devices where you&apos;re signed in</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                    <Globe className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      Current Session
-                      <Badge className="ml-2 bg-accent/20 text-accent border-accent/30 text-xs">
-                        Active
-                      </Badge>
-                    </p>
-                    <p className="text-xs text-muted-foreground">Your current browser session</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+            {status?.store.url ? (
+              <Button variant="outline" asChild>
+                <a href={status.store.url} target="_blank" rel="noopener noreferrer">
+                  Visit
+                  <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+                </a>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                Not configured
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

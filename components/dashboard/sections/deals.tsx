@@ -4,16 +4,26 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Search,
-  Filter,
+  Plus,
   ArrowUpDown,
   CheckCircle2,
   Clock,
   XCircle,
   MoreHorizontal,
-  ChevronDown,
+  Trash2,
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase-client";
 import { useDeals } from "@/lib/hooks/use-deals";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DealForm } from "@/components/dashboard/deal-form";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const statusConfig = {
   won: { icon: CheckCircle2, color: "text-success", bg: "bg-success/10", label: "Won" },
@@ -24,7 +34,46 @@ const statusConfig = {
 export function DealsSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [formOpen, setFormOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<"company" | "value" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { data: rawDeals, isLoading } = useDeals();
+  const qc = useQueryClient();
+
+  const updateDeal = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
+      const supabase = createClient();
+      const { error } = await supabase.from("deals").update(payload).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+      qc.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+
+  const deleteDeal = useMutation({
+    mutationFn: async (id: string) => {
+      const supabase = createClient();
+      const { error } = await supabase.from("deals").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      qc.invalidateQueries({ queryKey: ["pipeline"] });
+      qc.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
+
+  function toggleSort(col: "company" | "value") {
+    if (sortBy === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir(col === "company" ? "asc" : "desc");
+    }
+  }
 
   const deals = (rawDeals ?? []).map((d: {
     id: string; company: string; contact_name?: string; contact_email?: string;
@@ -42,13 +91,20 @@ export function DealsSection() {
     rep: d.team_members?.name ?? "—",
   }));
 
-  const filteredDeals = deals.filter((deal) => {
-    const matchesSearch =
-      deal.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      deal.contact.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = selectedFilter === "all" || deal.status === selectedFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredDeals = deals
+    .filter((deal) => {
+      const matchesSearch =
+        deal.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        deal.contact.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesFilter = selectedFilter === "all" || deal.status === selectedFilter;
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => {
+      if (!sortBy) return 0;
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "company") return a.company.localeCompare(b.company) * dir;
+      return (a.value - b.value) * dir;
+    });
 
   return (
     <div className="space-y-6">
@@ -85,10 +141,12 @@ export function DealsSection() {
             ))}
           </div>
         </div>
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-sm text-muted-foreground hover:text-foreground transition-colors duration-200">
-          <Filter className="w-4 h-4" />
-          More filters
-          <ChevronDown className="w-3 h-3" />
+        <button
+          onClick={() => setFormOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors duration-200"
+        >
+          <Plus className="w-4 h-4" />
+          Add Deal
         </button>
       </div>
 
@@ -98,14 +156,14 @@ export function DealsSection() {
             <thead>
               <tr className="border-b border-border bg-secondary/50">
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <button onClick={() => toggleSort("company")} className={cn("flex items-center gap-1 transition-colors", sortBy === "company" ? "text-foreground" : "hover:text-foreground")}>
                     Company
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Contact</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  <button onClick={() => toggleSort("value")} className={cn("flex items-center gap-1 transition-colors", sortBy === "value" ? "text-foreground" : "hover:text-foreground")}>
                     Value
                     <ArrowUpDown className="w-3 h-3" />
                   </button>
@@ -172,9 +230,39 @@ export function DealsSection() {
                           <span className="text-sm text-muted-foreground">{deal.closeDate}</span>
                         </td>
                         <td className="py-4 px-4">
-                          <button className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              {deal.status !== "won" && (
+                                <DropdownMenuItem
+                                  onClick={() => updateDeal.mutate({ id: deal.id, payload: { status: "won", stage: "closed_won" } })}
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-success" />
+                                  Mark Won
+                                </DropdownMenuItem>
+                              )}
+                              {deal.status !== "lost" && (
+                                <DropdownMenuItem
+                                  onClick={() => updateDeal.mutate({ id: deal.id, payload: { status: "lost", stage: "closed_lost" } })}
+                                >
+                                  <XCircle className="w-3.5 h-3.5 mr-2 text-destructive" />
+                                  Mark Lost
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => deleteDeal.mutate(deal.id)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </td>
                       </tr>
                     );
@@ -187,19 +275,10 @@ export function DealsSection() {
           <span className="text-sm text-muted-foreground">
             Showing {filteredDeals.length} of {deals.length} deals
           </span>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors duration-200">
-              Previous
-            </button>
-            <button className="px-3 py-1.5 rounded-lg text-sm bg-accent text-accent-foreground font-medium">
-              1
-            </button>
-            <button className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors duration-200">
-              Next
-            </button>
-          </div>
         </div>
       </div>
+
+      {formOpen && <DealForm open onClose={() => setFormOpen(false)} />}
     </div>
   );
 }
