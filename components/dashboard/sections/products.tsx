@@ -69,7 +69,7 @@ function CropModal({
   onConfirm,
 }: {
   src: string;
-  busy: "remove-bg" | "enhance" | null;
+  busy: "remove-bg" | "enhance" | "studio" | null;
   onCancel: () => void;
   onConfirm: (mode: "remove-bg" | "enhance", crop: CropRect) => void;
 }) {
@@ -196,7 +196,7 @@ function MultiImageUploader({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [urlInput, setUrlInput] = useState("");
-  const [processing, setProcessing] = useState<"remove-bg" | "enhance" | null>(null);
+  const [processing, setProcessing] = useState<"remove-bg" | "enhance" | "studio" | null>(null);
   const [aiError, setAiError] = useState("");
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +279,42 @@ function MultiImageUploader({
     setCropSrc(source);
   }
 
+  async function runStudio() {
+    const source = urlInput.trim() || coverUrl.trim();
+    if (!source) return;
+    try {
+      const parsed = new URL(source);
+      if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
+    } catch {
+      setAiError("Please enter a full image URL starting with https://");
+      return;
+    }
+    setProcessing("studio");
+    setAiError("");
+    try {
+      const res = await fetch("/api/store/ai-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: source }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) {
+        setAiError(data.error ?? "Unknown error");
+      } else {
+        const url = data.url;
+        // Add as a NEW image but don't overwrite the cover — you review it first
+        const next = images.includes(url) ? images : [url, ...images];
+        onImagesChange(next);
+        onCoverChange(url);
+        setUrlInput("");
+      }
+    } catch {
+      setAiError("Request failed");
+    } finally {
+      setProcessing(null);
+    }
+  }
+
   function removeImage(url: string) {
     const next = images.filter((u) => u !== url);
     onImagesChange(next);
@@ -342,7 +378,20 @@ function MultiImageUploader({
             <CropIcon className="w-3.5 h-3.5" />
             Crop & Remove
           </button>
+          <button
+            type="button"
+            onClick={runStudio}
+            disabled={aiBusy || !hasAiSource}
+            title="Generative AI: reshoot the product on a clean studio background with better lighting. Review before saving."
+            className="flex items-center gap-1.5 rounded-md border border-chart-3/40 bg-chart-3/10 px-3 py-1.5 text-xs font-medium text-chart-3 transition hover:bg-chart-3/20 disabled:opacity-40"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {processing === "studio" ? "Generating…" : "AI Studio Shot"}
+          </button>
         </div>
+        {processing === "studio" && (
+          <p className="text-[11px] text-muted-foreground/60">Generative AI reshoot — this can take 10–20 s. Review the result before saving; it may subtly alter the product.</p>
+        )}
         {aiBusy && (
           <p className="text-[11px] text-muted-foreground/60">Takes ~15–30 s on first use while the AI model loads…</p>
         )}
