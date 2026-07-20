@@ -10,8 +10,51 @@ Usage:
 
 import sys
 import io
+import os
 import json
 from PIL import Image
+
+# Cache the model session within this process (script runs once per request).
+_SESSION = None
+_SESSION_TRIED = False
+
+def _get_session():
+    """Load a higher-quality segmentation model. isnet-general-use has
+    noticeably cleaner edges than the default u2net. Falls back to the
+    default model if it can't be loaded."""
+    global _SESSION, _SESSION_TRIED
+    if _SESSION_TRIED:
+        return _SESSION
+    _SESSION_TRIED = True
+    try:
+        from rembg import new_session
+        _SESSION = new_session(os.environ.get("REMBG_MODEL", "isnet-general-use"))
+    except Exception as e:  # noqa: BLE001
+        print(f"model load failed, using default: {e}", file=sys.stderr)
+        _SESSION = None
+    return _SESSION
+
+def _remove(img_bytes: bytes) -> bytes:
+    """Remove the background to a transparent PNG. Uses alpha matting to
+    clean up soft edges and halos, with a plain fallback if it errors."""
+    from rembg import remove
+    session = _get_session()
+    kwargs = dict(
+        alpha_matting=True,
+        alpha_matting_foreground_threshold=240,
+        alpha_matting_background_threshold=15,
+        alpha_matting_erode_size=10,
+        post_process_mask=True,
+    )
+    if session is not None:
+        kwargs["session"] = session
+    try:
+        return remove(img_bytes, **kwargs)
+    except Exception as e:  # noqa: BLE001
+        print(f"alpha matting failed, retrying plain: {e}", file=sys.stderr)
+        if session is not None:
+            return remove(img_bytes, session=session, post_process_mask=True)
+        return remove(img_bytes)
 
 def apply_crop(img_bytes: bytes, crop: dict) -> bytes:
     """Crop to a normalized rect {x, y, w, h} (fractions 0-1) before processing.
@@ -30,15 +73,13 @@ def apply_crop(img_bytes: bytes, crop: dict) -> bytes:
     return out.getvalue()
 
 def remove_bg(img_bytes: bytes) -> bytes:
-    from rembg import remove
-    return remove(img_bytes)
+    return _remove(img_bytes)
 
 def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
-    from rembg import remove
     from PIL import ImageEnhance, ImageFilter
 
-    # 1. AI background removal
-    transparent = remove(img_bytes)
+    # 1. AI background removal (better model + alpha-matted edges)
+    transparent = _remove(img_bytes)
     fg = Image.open(io.BytesIO(transparent)).convert("RGBA")
 
     # 2. Crop out transparent border so we're working with just the product
