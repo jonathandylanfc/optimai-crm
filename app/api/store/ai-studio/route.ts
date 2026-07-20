@@ -64,44 +64,65 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Could not fetch image: ${String(err)}` }, { status: 400 });
   }
 
-  // 2. Call Gemini
+  // 2. Call Gemini — try the configured model first, then known image models,
+  //    so the feature works regardless of which ID the account has access to.
+  const candidateModels = Array.from(
+    new Set([
+      DEFAULT_MODEL,
+      "gemini-2.5-flash-image",
+      "gemini-2.5-flash-image-preview",
+      "gemini-2.0-flash-preview-image-generation",
+    ])
+  );
+
   let genB64: string | null = null;
+  let lastError = "";
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${DEFAULT_MODEL}:generateContent?key=${apiKey}`;
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { inline_data: { mime_type: sourceMime, data: base64 } },
-              { text: prompt?.trim() || DEFAULT_PROMPT },
-            ],
-          },
-        ],
-        generationConfig: { responseModalities: ["IMAGE"] },
-      }),
-    });
+    for (const model of candidateModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { inline_data: { mime_type: sourceMime, data: base64 } },
+                { text: prompt?.trim() || DEFAULT_PROMPT },
+              ],
+            },
+          ],
+          generationConfig: { responseModalities: ["IMAGE"] },
+        }),
+      });
 
-    const data = await res.json();
-    if (!res.ok) {
-      const msg = data?.error?.message ?? `Gemini error ${res.status}`;
-      return NextResponse.json({ error: `AI Studio failed: ${msg}` }, { status: 502 });
-    }
-
-    const parts: GeminiPart[] = data?.candidates?.[0]?.content?.parts ?? [];
-    for (const part of parts) {
-      const inline = (part as { inlineData?: { data: string }; inline_data?: { data: string } });
-      const d = inline.inlineData?.data ?? inline.inline_data?.data;
-      if (d) {
-        genB64 = d;
-        break;
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data?.error?.message ?? `Gemini error ${res.status}`;
+        lastError = msg;
+        // 404 / not-found / unsupported → try the next model; otherwise stop
+        if (res.status === 404 || /not found|not supported|unsupported|does not exist/i.test(msg)) {
+          continue;
+        }
+        return NextResponse.json({ error: `AI Studio failed: ${msg}` }, { status: 502 });
       }
+
+      const parts: GeminiPart[] = data?.candidates?.[0]?.content?.parts ?? [];
+      for (const part of parts) {
+        const inline = (part as { inlineData?: { data: string }; inline_data?: { data: string } });
+        const d = inline.inlineData?.data ?? inline.inline_data?.data;
+        if (d) {
+          genB64 = d;
+          break;
+        }
+      }
+      if (genB64) break; // success
+      lastError = "The model returned no image (it may have declined this photo).";
     }
+
     if (!genB64) {
       return NextResponse.json(
-        { error: "AI Studio returned no image. The model may have declined — try a different photo." },
+        { error: `AI Studio couldn't generate an image. ${lastError} If this mentions the model, set GEMINI_IMAGE_MODEL in the CRM env vars.` },
         { status: 502 }
       );
     }
