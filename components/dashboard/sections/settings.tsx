@@ -25,6 +25,7 @@ type StatusResponse = {
   supabase: ServiceStatus;
   ai: ServiceStatus;
   cloudinary: ServiceStatus;
+  gemini?: ServiceStatus;
 };
 
 function StatusBadge({ ok }: { ok: boolean }) {
@@ -101,6 +102,14 @@ export function SettingsSection() {
           icon: Wand2,
           ok: status.ai.ok,
           error: status.ai.error,
+        },
+        {
+          id: "gemini",
+          name: "AI Studio Shot (Gemini)",
+          description: "Generative studio product photos",
+          icon: Wand2,
+          ok: status.gemini?.ok ?? false,
+          error: status.gemini?.error ?? "GEMINI_API_KEY not detected — add it to this service and redeploy.",
         },
         {
           id: "cloudinary",

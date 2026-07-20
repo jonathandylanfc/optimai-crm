@@ -61,10 +61,18 @@ export async function GET() {
     (process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "OPTIMAI")
   );
 
+  // AI Studio (Gemini): is the key present in THIS running process?
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiOk = !!geminiKey;
+
   return NextResponse.json({
     store: { ok: storeReachable, configured: !!(STORE_URL && STORE_SECRET), url: STORE_URL || null, error: storeError },
     supabase: { ok: supabaseOk, configured: !!(supabaseUrl && supabaseKey), error: supabaseError },
     ai: { ok: aiOk, error: aiError },
     cloudinary: { ok: cloudinaryConfigured, error: cloudinaryConfigured ? null : "Cloudinary env vars not set" },
+    gemini: {
+      ok: geminiOk,
+      error: geminiOk ? null : "GEMINI_API_KEY not found in the running CRM process — add it to THIS service's variables and redeploy.",
+    },
   });
 }
