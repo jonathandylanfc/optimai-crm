@@ -79,10 +79,12 @@ export async function POST(req: NextRequest) {
   let lastError = "";
   try {
     for (const model of candidateModels) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        // Auth via header (works for both AIza… and newer AQ.… keys, and keeps
+        // the key out of the URL / request logs)
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
           contents: [
             {
