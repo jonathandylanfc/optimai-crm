@@ -9,11 +9,65 @@ const DEFAULT_MODEL = process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image"
 
 const DEFAULT_PROMPT =
   "Reshoot this exact product as a professional e-commerce product photo: " +
-  "place it on a clean, pure white studio background with soft, even, professional lighting " +
-  "and a subtle natural shadow. Center the product in frame. " +
+  "place it on a pure solid white (#FFFFFF) background with soft, even, professional studio lighting. " +
+  "The product must be cleanly isolated with NO shadow, NO floor, and NO surface — it should appear " +
+  "floating on plain white. Center the product in frame with a small margin so it does not touch the edges. " +
   "CRITICAL: keep the product itself completely unchanged — identical shape, proportions, colors, " +
   "materials, logos, and any text or labels. Do not add, remove, or redesign any part of the product. " +
   "Only change the background and lighting.";
+
+// Remove the white background Gemini generates, leaving a TRANSPARENT PNG.
+// Flood-fills near-white pixels starting from the image edges, so the surrounding
+// white becomes transparent while white/chrome parts INSIDE the product (not
+// connected to the border) are preserved. A light edge feather reduces haloing —
+// important on a dark storefront where a white fringe would be visible.
+async function whiteToTransparent(pngBuffer: Buffer): Promise<Buffer> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Jimp = require("jimp");
+  const img = await Jimp.read(pngBuffer);
+  const { width, height, data } = img.bitmap as { width: number; height: number; data: Buffer };
+  const N = width * height;
+  const bg = new Uint8Array(N);
+  const TH = 238; // treat r,g,b all >= TH as background white
+  const isWhite = (p: number) => data[p * 4] >= TH && data[p * 4 + 1] >= TH && data[p * 4 + 2] >= TH;
+
+  const stack: number[] = [];
+  const seed = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const p = y * width + x;
+    if (bg[p] || !isWhite(p)) return;
+    bg[p] = 1;
+    stack.push(p);
+  };
+  for (let x = 0; x < width; x++) { seed(x, 0); seed(x, height - 1); }
+  for (let y = 0; y < height; y++) { seed(0, y); seed(width - 1, y); }
+  while (stack.length) {
+    const p = stack.pop() as number;
+    const x = p % width;
+    const y = (p - x) / width;
+    seed(x + 1, y); seed(x - 1, y); seed(x, y + 1); seed(x, y - 1);
+  }
+
+  const lum = (p: number) => 0.299 * data[p * 4] + 0.587 * data[p * 4 + 1] + 0.114 * data[p * 4 + 2];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const p = y * width + x;
+      if (bg[p]) { data[p * 4 + 3] = 0; continue; }
+      // Anti-halo: fade light pixels that border the removed background
+      const touchesBg =
+        (x > 0 && bg[p - 1]) || (x < width - 1 && bg[p + 1]) ||
+        (y > 0 && bg[p - width]) || (y < height - 1 && bg[p + width]);
+      if (touchesBg) {
+        const l = lum(p);
+        if (l > 210) {
+          const a = Math.max(0, Math.min(255, Math.round(((255 - l) / 45) * 255)));
+          if (a < data[p * 4 + 3]) data[p * 4 + 3] = a;
+        }
+      }
+    }
+  }
+  return img.getBufferAsync(Jimp.MIME_PNG);
+}
 
 async function uploadToCloudinary(pngBuffer: Buffer): Promise<string> {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "v4h2yok3";
@@ -132,9 +186,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `AI Studio request failed: ${String(err)}` }, { status: 502 });
   }
 
-  // 3. Upload the generated image to Cloudinary
+  // 3. Knock out the white background → transparent PNG, then upload to Cloudinary
   try {
-    const outUrl = await uploadToCloudinary(Buffer.from(genB64, "base64"));
+    let outBuffer: Buffer = Buffer.from(genB64, "base64");
+    try {
+      outBuffer = await whiteToTransparent(outBuffer);
+    } catch (e) {
+      console.error("[ai-studio] transparency step failed, uploading as-is:", e);
+    }
+    const outUrl = await uploadToCloudinary(outBuffer);
     return NextResponse.json({ url: outUrl });
   } catch (err) {
     return NextResponse.json({ error: `Upload failed: ${String(err)}` }, { status: 500 });
