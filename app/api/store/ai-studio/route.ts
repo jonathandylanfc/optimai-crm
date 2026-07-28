@@ -192,7 +192,11 @@ export async function POST(req: NextRequest) {
     try {
       outBuffer = await whiteToTransparent(outBuffer);
     } catch (e) {
-      console.error("[ai-studio] transparency step failed, uploading as-is:", e);
+      // Surface the reason instead of silently returning the white image
+      return NextResponse.json(
+        { error: `Background removal failed: ${e instanceof Error ? e.message : String(e)}` },
+        { status: 500 }
+      );
     }
     const outUrl = await uploadToCloudinary(outBuffer);
     return NextResponse.json({ url: outUrl });
