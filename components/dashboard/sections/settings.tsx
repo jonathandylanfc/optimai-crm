@@ -16,6 +16,7 @@ import {
   XCircle,
   ExternalLink,
   ArrowDownUp,
+  Download,
 } from "lucide-react";
 
 type ServiceStatus = { ok: boolean; configured?: boolean; url?: string | null; error: string | null };
@@ -215,6 +216,26 @@ export function SettingsSection() {
               {syncResult}
             </p>
           )}
+
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
+                <Download className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Meta product catalog</p>
+                <p className="text-sm text-muted-foreground">
+                  Download the Facebook/Instagram catalog CSV (all published products &amp; variants)
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" asChild>
+              <a href="/api/store/catalog" download="catalog_products.csv">
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Download CSV
+              </a>
+            </Button>
+          </div>
 
           <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30 border border-border">
             <div className="flex items-center gap-3">
