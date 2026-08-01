@@ -26,19 +26,36 @@ export async function GET() {
     storeError = "CAR_ACCESSORIES_URL / CAR_ACCESSORIES_API_SECRET not set";
   }
 
-  // Supabase: config + live query
+  // Supabase: config + live query. Prefer the service-role key (needed by
+  // order sync/cancel/ship), fall back to the anon key just to prove reach.
   let supabaseOk = false;
   let supabaseError: string | null = null;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = serviceKey || anonKey;
   if (supabaseUrl && supabaseKey) {
     try {
       const supabase = createClient(supabaseUrl, supabaseKey);
-      const { error } = await supabase.from("customers").select("id", { count: "exact", head: true });
-      supabaseOk = !error;
-      if (error) supabaseError = error.message;
+      const { error } = await supabase
+        .from("customers")
+        .select("id")
+        .limit(1)
+        .abortSignal(AbortSignal.timeout(8000));
+      if (error) {
+        supabaseError = error.message;
+      } else if (!serviceKey) {
+        // Reachable, but the write-side key is missing
+        supabaseError = "Connected via anon key — SUPABASE_SERVICE_ROLE_KEY is not set (order sync/cancel/ship need it).";
+      } else {
+        supabaseOk = true;
+      }
     } catch (e) {
-      supabaseError = e instanceof Error ? e.message : "Query failed";
+      // "fetch failed" hides the real reason in .cause — surface it
+      const cause = (e as { cause?: unknown })?.cause;
+      const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+      const base = e instanceof Error ? e.message : "Query failed";
+      supabaseError = causeMsg ? `${base} — ${causeMsg}` : base;
     }
   } else {
     supabaseError = "Supabase env vars not set";
