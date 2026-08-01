@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ProductsSection } from "@/components/dashboard/sections/products";
+import { DiscountsSection } from "@/components/dashboard/sections/discounts";
 import {
   DollarSign,
   ShoppingCart,
@@ -102,9 +103,9 @@ function StatCard({
   );
 }
 
-type StoreTab = "overview" | "products" | "reviews";
+type StoreTab = "overview" | "products" | "reviews" | "discounts";
 
-const STORE_TABS: StoreTab[] = ["overview", "products", "reviews"];
+const STORE_TABS: StoreTab[] = ["overview", "products", "reviews", "discounts"];
 
 export function StoreAnalyticsSection() {
   const [tab, setTab] = useState<StoreTab>(() => {
@@ -125,6 +126,7 @@ export function StoreAnalyticsSection() {
       {tab === "overview" && <StoreOverview />}
       {tab === "products" && <ProductsSection />}
       {tab === "reviews" && <ReviewsSection />}
+      {tab === "discounts" && <DiscountsSection />}
     </div>
   );
 }
@@ -134,6 +136,7 @@ function SubTabs({ active, onChange }: { active: StoreTab; onChange: (t: StoreTa
     { key: "overview", label: "Overview" },
     { key: "products", label: "Products" },
     { key: "reviews", label: "Reviews" },
+    { key: "discounts", label: "Discounts" },
   ];
   return (
     <div className="flex gap-1 border-b border-border pb-0">
