@@ -1,18 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const STORE_SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
 export async function POST() {
-  if (!STORE_URL || !STORE_SECRET) {
-    return NextResponse.json({ error: "CAR_ACCESSORIES_URL and CAR_ACCESSORIES_API_SECRET must be set" }, { status: 503 });
+  const store = await activeStore();
+  if (!store) {
+    return NextResponse.json({ error: "No store connected." }, { status: 503 });
   }
-
   try {
-    const res = await fetch(`${STORE_URL}/api/admin/sync-crm`, {
+    const res = await fetch(`${store.baseUrl}/api/admin/sync-crm`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${STORE_SECRET}` },
+      headers: { Authorization: `Bearer ${store.secret}` },
     });
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

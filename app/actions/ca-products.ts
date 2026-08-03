@@ -1,12 +1,13 @@
 "use server";
 
-const BASE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
-function headers() {
+async function conn() {
+  const store = await activeStore();
+  if (!store) throw new Error("No store connected. Add one in Settings → Connected Stores.");
   return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${SECRET}`,
+    baseUrl: store.baseUrl,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.secret}` },
   };
 }
 
@@ -55,18 +56,17 @@ export interface CAProductPayload {
 }
 
 export async function fetchCAProducts(): Promise<CAProduct[]> {
-  const res = await fetch(`${BASE_URL}/api/products`, {
-    headers: headers(),
-    cache: "no-store",
-  });
+  const { baseUrl, headers } = await conn();
+  const res = await fetch(`${baseUrl}/api/products`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
   return res.json();
 }
 
 export async function createCAProduct(payload: CAProductPayload): Promise<CAProduct> {
-  const res = await fetch(`${BASE_URL}/api/products`, {
+  const { baseUrl, headers } = await conn();
+  const res = await fetch(`${baseUrl}/api/products`, {
     method: "POST",
-    headers: headers(),
+    headers,
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to create product: ${res.status}`);
@@ -74,9 +74,10 @@ export async function createCAProduct(payload: CAProductPayload): Promise<CAProd
 }
 
 export async function updateCAProduct(id: number, payload: Partial<CAProductPayload>): Promise<CAProduct> {
-  const res = await fetch(`${BASE_URL}/api/products/${id}`, {
+  const { baseUrl, headers } = await conn();
+  const res = await fetch(`${baseUrl}/api/products/${id}`, {
     method: "PUT",
-    headers: headers(),
+    headers,
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update product: ${res.status}`);
@@ -84,9 +85,10 @@ export async function updateCAProduct(id: number, payload: Partial<CAProductPayl
 }
 
 export async function deleteCAProduct(id: number): Promise<void> {
-  const res = await fetch(`${BASE_URL}/api/products/${id}`, {
+  const { baseUrl, headers } = await conn();
+  const res = await fetch(`${baseUrl}/api/products/${id}`, {
     method: "DELETE",
-    headers: headers(),
+    headers,
   });
   if (!res.ok && res.status !== 204) {
     const body = await res.json().catch(() => ({}));

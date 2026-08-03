@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const STORE_SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
 type StoreOrder = {
   id: number;
@@ -17,14 +15,15 @@ const QUARTER_MAP: Record<number, string> = { 0: "Q1", 1: "Q1", 2: "Q1", 3: "Q2"
 function fmt(y: number, m: number) { return `${y}-${String(m + 1).padStart(2, "0")}`; }
 
 export async function GET() {
-  if (!STORE_URL || !STORE_SECRET) {
-    return NextResponse.json({ error: "Store not configured" }, { status: 503 });
+  const store = await activeStore();
+  if (!store) {
+    return NextResponse.json({ error: "No store connected" }, { status: 503 });
   }
 
   let orders: StoreOrder[] = [];
   try {
-    const res = await fetch(`${STORE_URL}/api/orders`, {
-      headers: { Authorization: `Bearer ${STORE_SECRET}` },
+    const res = await fetch(`${store.baseUrl}/api/orders`, {
+      headers: { Authorization: `Bearer ${store.secret}` },
       cache: "no-store",
     });
     if (res.ok) orders = await res.json();

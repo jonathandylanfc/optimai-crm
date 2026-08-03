@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const STORE_SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
 function getCrmClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,13 +18,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Cancel in the store (also sends customer email)
-  if (STORE_URL && STORE_SECRET) {
+  const store = await activeStore();
+  if (store) {
     try {
-      await fetch(`${STORE_URL}/api/admin/cancel-order`, {
+      await fetch(`${store.baseUrl}/api/admin/cancel-order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${STORE_SECRET}`,
+          Authorization: `Bearer ${store.secret}`,
         },
         body: JSON.stringify({ orderId: storeOrderId }),
       });

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { Section } from "@/app/page";
 import { Bell, Search, Calendar, Menu } from "lucide-react";
 import { useState } from "react";
+import { StoreSwitcher } from "@/components/dashboard/store-switcher";
 
 interface HeaderProps {
   activeSection: Section;
@@ -46,6 +47,9 @@ export function Header({ activeSection, onMobileMenuToggle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Active store switcher */}
+        <StoreSwitcher />
+
         {/* Search — hidden on mobile */}
         <div
           className={cn(

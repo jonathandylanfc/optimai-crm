@@ -2,18 +2,18 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { spawnSync } from "child_process";
 import { createClient } from "@supabase/supabase-js";
-
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const STORE_SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
 export async function GET() {
-  // Car accessories store connection: config + live reachability
+  // Active store connection: config + live reachability
+  const store = await activeStore();
+  const STORE_URL = store?.baseUrl ?? null;
   let storeReachable = false;
   let storeError: string | null = null;
-  if (STORE_URL && STORE_SECRET) {
+  if (store) {
     try {
-      const res = await fetch(`${STORE_URL}/api/products`, {
-        headers: { Authorization: `Bearer ${STORE_SECRET}` },
+      const res = await fetch(`${store.baseUrl}/api/products`, {
+        headers: { Authorization: `Bearer ${store.secret}` },
         cache: "no-store",
         signal: AbortSignal.timeout(8000),
       });
@@ -23,7 +23,7 @@ export async function GET() {
       storeError = e instanceof Error ? e.message : "Unreachable";
     }
   } else {
-    storeError = "CAR_ACCESSORIES_URL / CAR_ACCESSORIES_API_SECRET not set";
+    storeError = "No store connected — add one in Settings → Connected Stores.";
   }
 
   // Supabase: config + live query. Prefer the service-role key (needed by
@@ -83,7 +83,7 @@ export async function GET() {
   const geminiOk = !!geminiKey;
 
   return NextResponse.json({
-    store: { ok: storeReachable, configured: !!(STORE_URL && STORE_SECRET), url: STORE_URL || null, error: storeError },
+    store: { ok: storeReachable, configured: !!store, url: STORE_URL, error: storeError, name: store?.name ?? null },
     supabase: { ok: supabaseOk, configured: !!(supabaseUrl && supabaseKey), error: supabaseError },
     ai: { ok: aiOk, error: aiError },
     cloudinary: { ok: cloudinaryConfigured, error: cloudinaryConfigured ? null : "Cloudinary env vars not set" },

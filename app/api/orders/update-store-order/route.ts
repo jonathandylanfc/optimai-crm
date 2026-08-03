@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-const STORE_SECRET = process.env.CAR_ACCESSORIES_API_SECRET ?? "";
+import { activeStore } from "@/lib/stores";
 
 // Store statuses → CRM (Supabase) statuses
 const STATUS_MAP: Record<string, string> = {
@@ -30,16 +28,17 @@ export async function POST(req: NextRequest) {
   if (!storeOrderId) {
     return NextResponse.json({ error: "storeOrderId required" }, { status: 400 });
   }
-  if (!STORE_URL || !STORE_SECRET) {
-    return NextResponse.json({ error: "Store connection not configured" }, { status: 503 });
+  const store = await activeStore();
+  if (!store) {
+    return NextResponse.json({ error: "No store connected" }, { status: 503 });
   }
 
   // Update the store (source of truth) — this also emails the customer on ship
-  const storeRes = await fetch(`${STORE_URL}/api/admin/orders/${storeOrderId}`, {
+  const storeRes = await fetch(`${store.baseUrl}/api/admin/orders/${storeOrderId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${STORE_SECRET}`,
+      Authorization: `Bearer ${store.secret}`,
     },
     body: JSON.stringify({
       ...(status !== undefined ? { status } : {}),

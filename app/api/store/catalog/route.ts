@@ -1,17 +1,16 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { activeStore } from "@/lib/stores";
 
-const STORE_URL = (process.env.CAR_ACCESSORIES_URL ?? "").replace(/\/$/, "");
-
-// Proxies the storefront's public Meta catalog feed and returns it as a
-// file download, so the CRM can offer a one-click "Download catalog" button
-// without exposing the store URL to the client.
+// Proxies the active store's public Meta catalog feed and returns it as a
+// file download, so the CRM can offer a one-click "Download catalog" button.
 export async function GET() {
-  if (!STORE_URL) {
-    return NextResponse.json({ error: "CAR_ACCESSORIES_URL is not set" }, { status: 503 });
+  const store = await activeStore();
+  if (!store) {
+    return NextResponse.json({ error: "No store connected." }, { status: 503 });
   }
   try {
-    const res = await fetch(`${STORE_URL}/api/catalog`, { cache: "no-store" });
+    const res = await fetch(`${store.baseUrl}/api/catalog`, { cache: "no-store" });
     if (!res.ok) {
       return NextResponse.json({ error: `Store returned ${res.status}` }, { status: 502 });
     }

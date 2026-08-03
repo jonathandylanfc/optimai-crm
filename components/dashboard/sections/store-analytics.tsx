@@ -259,7 +259,7 @@ function StoreOverview() {
       <div className="flex flex-col items-center gap-3 py-24 text-muted-foreground">
         <AlertTriangle className="w-10 h-10 opacity-40" />
         <p className="font-medium">Could not load store data.</p>
-        <p className="text-sm">Check that CAR_ACCESSORIES_URL and CAR_ACCESSORIES_API_SECRET are set.</p>
+        <p className="text-sm">Check the store connection in Settings → Connected Stores.</p>
       </div>
     );
   }

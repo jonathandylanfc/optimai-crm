@@ -840,9 +840,7 @@ export function ProductsSection() {
           {error instanceof Error ? error.message : "Unknown error"}
         </p>
         <p className="text-sm text-muted-foreground/60 max-w-sm">
-          Make sure <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_URL</code>,{" "}
-          <code className="bg-secondary px-1 rounded">CAR_ACCESSORIES_API_SECRET</code>, and{" "}
-          <code className="bg-secondary px-1 rounded">INTERNAL_API_SECRET</code> (on the car accessories app) are all set and matching.
+          Check the store connection in <span className="text-foreground">Settings → Connected Stores</span> — the selected store must be reachable and its API secret must match.
         </p>
       </div>
     );
