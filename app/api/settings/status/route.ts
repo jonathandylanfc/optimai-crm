@@ -34,6 +34,8 @@ export async function GET() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabaseKey = serviceKey || anonKey;
+  // Which pieces are present (server-side runtime) — names only, never values
+  const envState = `url=${supabaseUrl ? "set" : "MISSING"}, anon=${anonKey ? "set" : "MISSING"}, service_role=${serviceKey ? "set" : "MISSING"}`;
   if (supabaseUrl && supabaseKey) {
     try {
       const supabase = createClient(supabaseUrl, supabaseKey);
@@ -43,22 +45,21 @@ export async function GET() {
         .limit(1)
         .abortSignal(AbortSignal.timeout(8000));
       if (error) {
-        supabaseError = error.message;
+        supabaseError = `${error.message} (${envState})`;
       } else if (!serviceKey) {
-        // Reachable, but the write-side key is missing
         supabaseError = "Connected via anon key — SUPABASE_SERVICE_ROLE_KEY is not set (order sync/cancel/ship need it).";
       } else {
         supabaseOk = true;
       }
     } catch (e) {
-      // "fetch failed" hides the real reason in .cause — surface it
-      const cause = (e as { cause?: unknown })?.cause;
-      const causeMsg = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+      // "fetch failed" hides the real reason — dig the cause chain for a code
+      const cause = (e as { cause?: { code?: string; message?: string; errors?: { code?: string }[] } })?.cause;
+      const code = cause?.code || cause?.errors?.find((x) => x.code)?.code || cause?.message || "";
       const base = e instanceof Error ? e.message : "Query failed";
-      supabaseError = causeMsg ? `${base} — ${causeMsg}` : base;
+      supabaseError = `${base}${code ? ` [${code}]` : ""} (${envState})`;
     }
   } else {
-    supabaseError = "Supabase env vars not set";
+    supabaseError = `Supabase env not fully set — ${envState}`;
   }
 
   // AI image processing: python3 + rembg present on this server
