@@ -251,6 +251,10 @@ type FunnelData = {
   period: string;
   funnel: FunnelStep[];
   conversionRate: number;
+  revenueCents: number;
+  orders: number;
+  aovCents: number;
+  revenuePerVisitorCents: number;
   totalEvents: number;
   topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
   bySource: SourceRow[];
@@ -340,11 +344,25 @@ function FunnelSection() {
       {!isError && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+              ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
               : [
                   { label: "Visitors", value: visitors.toLocaleString(), icon: Users, iconColor: "text-chart-1" },
+                  {
+                    label: "Revenue",
+                    value: formatDollars(data!.revenueCents),
+                    sub: `${formatDollars(data!.revenuePerVisitorCents)} / visitor`,
+                    icon: DollarSign,
+                    iconColor: "text-accent",
+                  },
+                  {
+                    label: "Avg Order Value",
+                    value: data!.orders ? formatDollars(data!.aovCents) : "—",
+                    sub: `${data!.orders.toLocaleString()} orders`,
+                    icon: ShoppingCart,
+                    iconColor: "text-chart-1",
+                  },
                   {
                     label: "Conversion Rate",
                     value: pct(data!.conversionRate),
