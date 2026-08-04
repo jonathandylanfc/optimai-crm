@@ -43,6 +43,9 @@ import {
   CreditCard,
   Users,
   Filter,
+  Smartphone,
+  Monitor,
+  Tablet,
 } from "lucide-react";
 
 type AnalyticsData = {
@@ -267,8 +270,16 @@ type FunnelData = {
   totalEvents: number;
   topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
   bySource: SourceRow[];
+  byDevice: { device: string; visitors: number; purchases: number; conversionRate: number }[];
   daily: { date: string; visitors: number; purchases: number }[];
   updatedAt: string;
+};
+
+const DEVICE_ICONS: Record<string, React.ElementType> = {
+  mobile: Smartphone,
+  tablet: Tablet,
+  desktop: Monitor,
+  unknown: MousePointerClick,
 };
 
 const FUNNEL_PERIODS: { key: string; label: string }[] = [
@@ -590,6 +601,56 @@ function FunnelSection() {
                     </tbody>
                   </table>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Device split */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Device Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : !data!.byDevice.length ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No device data yet.</p>
+              ) : (
+                (() => {
+                  const total = data!.byDevice.reduce((n, d) => n + d.visitors, 0) || 1;
+                  return (
+                    <div className="space-y-4">
+                      {data!.byDevice.map((d) => {
+                        const Icon = DEVICE_ICONS[d.device] ?? MousePointerClick;
+                        const share = d.visitors / total;
+                        return (
+                          <div key={d.device}>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="flex items-center gap-2 font-medium text-foreground capitalize">
+                                <Icon className="w-4 h-4 text-muted-foreground" />
+                                {d.device}
+                              </span>
+                              <span className="text-muted-foreground">
+                                <span className="text-foreground font-semibold tabular-nums">
+                                  {d.visitors.toLocaleString()}
+                                </span>{" "}
+                                visitors · {pct(d.conversionRate)} conv.
+                              </span>
+                            </div>
+                            <div className="h-2.5 w-full rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full bg-chart-1 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.max(share * 100, d.visitors > 0 ? 2 : 0)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </CardContent>
           </Card>
