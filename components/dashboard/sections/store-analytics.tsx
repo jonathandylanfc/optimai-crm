@@ -19,6 +19,15 @@ import {
 import { ProductsSection } from "@/components/dashboard/sections/products";
 import { DiscountsSection } from "@/components/dashboard/sections/discounts";
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
   DollarSign,
   ShoppingCart,
   Star,
@@ -258,6 +267,7 @@ type FunnelData = {
   totalEvents: number;
   topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
   bySource: SourceRow[];
+  daily: { date: string; visitors: number; purchases: number }[];
   updatedAt: string;
 };
 
@@ -436,6 +446,108 @@ function FunnelSection() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Daily trend */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span>Daily Trend</span>
+                <span className="flex items-center gap-4 text-xs font-normal">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-chart-1" />
+                    <span className="text-muted-foreground">Visitors</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-accent" />
+                    <span className="text-muted-foreground">Purchases</span>
+                  </span>
+                </span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Last 14 days</p>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-56 w-full" />
+              ) : !data!.daily.some((d) => d.visitors > 0 || d.purchases > 0) ? (
+                <p className="text-sm text-muted-foreground py-16 text-center">No traffic in the last 14 days yet.</p>
+              ) : (
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={data!.daily.map((d) => ({
+                        ...d,
+                        label: new Date(d.date + "T00:00:00").toLocaleDateString("en-US", {
+                          month: "numeric",
+                          day: "numeric",
+                        }),
+                      }))}
+                      margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="funnelVisitors" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.005 260)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        dy={6}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        allowDecimals={false}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "oklch(0.12 0.005 260)",
+                          border: "1px solid oklch(0.22 0.005 260)",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ color: "oklch(0.95 0 0)", fontWeight: 600 }}
+                      />
+                      <Area
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="visitors"
+                        name="Visitors"
+                        stroke="oklch(0.7 0.18 220)"
+                        strokeWidth={2}
+                        fill="url(#funnelVisitors)"
+                        dot={false}
+                      />
+                      <Area
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="purchases"
+                        name="Purchases"
+                        stroke="oklch(0.72 0.19 150)"
+                        strokeWidth={2}
+                        fill="transparent"
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               )}
             </CardContent>
