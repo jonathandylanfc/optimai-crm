@@ -596,6 +596,9 @@ function VariantsEditor({
   variants: CAVariantPayload[];
   onChange: (v: CAVariantPayload[]) => void;
 }) {
+  const [bulkSize, setBulkSize] = useState("");
+  const [bulkColors, setBulkColors] = useState("");
+
   function add() {
     onChange([...variants, { name: "", color: null, priceCents: null, stock: 50, imageUrl: null, images: [] }]);
   }
@@ -605,6 +608,23 @@ function VariantsEditor({
   function update(i: number, field: keyof CAVariantPayload, value: string | number | null | string[]) {
     const next = variants.map((v, idx) => (idx === i ? { ...v, [field]: value } : v));
     onChange(next);
+  }
+  // Add one variant per color for a given size in a single click.
+  function bulkAdd() {
+    const size = bulkSize.trim();
+    if (!size) return;
+    const colors = bulkColors.split(",").map((c) => c.trim()).filter(Boolean);
+    const rows: CAVariantPayload[] = (colors.length ? colors : [null]).map((color) => ({
+      name: size,
+      color,
+      priceCents: null,
+      stock: 50,
+      imageUrl: null,
+      images: [],
+    }));
+    onChange([...variants, ...rows]);
+    setBulkSize("");
+    setBulkColors("");
   }
 
   return (
@@ -619,6 +639,36 @@ function VariantsEditor({
           <Plus className="w-3.5 h-3.5" /> Add variant
         </button>
       </div>
+      {/* Bulk add: one size, many colors, in a single click */}
+      <div className="rounded-lg border border-dashed border-border p-2.5 space-y-1.5 bg-secondary/30">
+        <p className="text-[11px] font-medium text-muted-foreground">Quick add — one size, multiple colors</p>
+        <div className="grid grid-cols-[1fr_1.4fr_auto] gap-1.5">
+          <input
+            type="text"
+            value={bulkSize}
+            onChange={(e) => setBulkSize(e.target.value)}
+            placeholder="Size (e.g. Medium)"
+            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+          />
+          <input
+            type="text"
+            value={bulkColors}
+            onChange={(e) => setBulkColors(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); bulkAdd(); } }}
+            placeholder="Colors, comma-separated (Black, Blue, Pink)"
+            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+          />
+          <button
+            type="button"
+            onClick={bulkAdd}
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/90"
+          >
+            Generate
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground/50">Creates one variant per color for that size. Then add photos/price to each.</p>
+      </div>
+
       {variants.length === 0 && (
         <p className="text-xs text-muted-foreground/50 italic">No variants — product has a single price and stock.</p>
       )}
@@ -747,7 +797,7 @@ function ProductForm({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="bg-card border-border sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-border sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Product" : "New Product"}</DialogTitle>
         </DialogHeader>
