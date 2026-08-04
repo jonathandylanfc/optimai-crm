@@ -19,6 +19,15 @@ import {
 import { ProductsSection } from "@/components/dashboard/sections/products";
 import { DiscountsSection } from "@/components/dashboard/sections/discounts";
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
   DollarSign,
   ShoppingCart,
   Star,
@@ -34,6 +43,9 @@ import {
   CreditCard,
   Users,
   Filter,
+  Smartphone,
+  Monitor,
+  Tablet,
 } from "lucide-react";
 
 type AnalyticsData = {
@@ -239,13 +251,35 @@ type FunnelStep = {
   pctOfPrev: number;
 };
 
+type SourceRow = {
+  source: string;
+  visitors: number;
+  purchases: number;
+  revenueCents: number;
+  conversionRate: number;
+};
+
 type FunnelData = {
   period: string;
   funnel: FunnelStep[];
   conversionRate: number;
+  revenueCents: number;
+  orders: number;
+  aovCents: number;
+  revenuePerVisitorCents: number;
   totalEvents: number;
   topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
+  bySource: SourceRow[];
+  byDevice: { device: string; visitors: number; purchases: number; conversionRate: number }[];
+  daily: { date: string; visitors: number; purchases: number }[];
   updatedAt: string;
+};
+
+const DEVICE_ICONS: Record<string, React.ElementType> = {
+  mobile: Smartphone,
+  tablet: Tablet,
+  desktop: Monitor,
+  unknown: MousePointerClick,
 };
 
 const FUNNEL_PERIODS: { key: string; label: string }[] = [
@@ -331,11 +365,25 @@ function FunnelSection() {
       {!isError && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoading
-              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+              ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
               : [
                   { label: "Visitors", value: visitors.toLocaleString(), icon: Users, iconColor: "text-chart-1" },
+                  {
+                    label: "Revenue",
+                    value: formatDollars(data!.revenueCents),
+                    sub: `${formatDollars(data!.revenuePerVisitorCents)} / visitor`,
+                    icon: DollarSign,
+                    iconColor: "text-accent",
+                  },
+                  {
+                    label: "Avg Order Value",
+                    value: data!.orders ? formatDollars(data!.aovCents) : "—",
+                    sub: `${data!.orders.toLocaleString()} orders`,
+                    icon: ShoppingCart,
+                    iconColor: "text-chart-1",
+                  },
                   {
                     label: "Conversion Rate",
                     value: pct(data!.conversionRate),
@@ -410,6 +458,199 @@ function FunnelSection() {
                     );
                   })}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Daily trend */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base font-semibold flex items-center justify-between">
+                <span>Daily Trend</span>
+                <span className="flex items-center gap-4 text-xs font-normal">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-chart-1" />
+                    <span className="text-muted-foreground">Visitors</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-accent" />
+                    <span className="text-muted-foreground">Purchases</span>
+                  </span>
+                </span>
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">Last 14 days</p>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-56 w-full" />
+              ) : !data!.daily.some((d) => d.visitors > 0 || d.purchases > 0) ? (
+                <p className="text-sm text-muted-foreground py-16 text-center">No traffic in the last 14 days yet.</p>
+              ) : (
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={data!.daily.map((d) => ({
+                        ...d,
+                        label: new Date(d.date + "T00:00:00").toLocaleDateString("en-US", {
+                          month: "numeric",
+                          day: "numeric",
+                        }),
+                      }))}
+                      margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="funnelVisitors" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="oklch(0.7 0.18 220)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.22 0.005 260)" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        dy={6}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        allowDecimals={false}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "oklch(0.65 0 0)", fontSize: 11 }}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "oklch(0.12 0.005 260)",
+                          border: "1px solid oklch(0.22 0.005 260)",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                        labelStyle={{ color: "oklch(0.95 0 0)", fontWeight: 600 }}
+                      />
+                      <Area
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="visitors"
+                        name="Visitors"
+                        stroke="oklch(0.7 0.18 220)"
+                        strokeWidth={2}
+                        fill="url(#funnelVisitors)"
+                        dot={false}
+                      />
+                      <Area
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="purchases"
+                        name="Purchases"
+                        stroke="oklch(0.72 0.19 150)"
+                        strokeWidth={2}
+                        fill="transparent"
+                        dot={false}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Traffic sources */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Traffic Sources</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+              ) : !data!.bySource.length ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">No traffic yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Source</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Visitors</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Purchases</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Conv.</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data!.bySource.map((s) => (
+                        <tr key={s.source} className="border-b border-border last:border-0 hover:bg-secondary/40 transition-colors">
+                          <td className="px-4 py-3 font-medium text-foreground capitalize">{s.source}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.visitors.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.purchases.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{pct(s.conversionRate)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-accent">{formatDollars(s.revenueCents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Device split */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Device Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : !data!.byDevice.length ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No device data yet.</p>
+              ) : (
+                (() => {
+                  const total = data!.byDevice.reduce((n, d) => n + d.visitors, 0) || 1;
+                  return (
+                    <div className="space-y-4">
+                      {data!.byDevice.map((d) => {
+                        const Icon = DEVICE_ICONS[d.device] ?? MousePointerClick;
+                        const share = d.visitors / total;
+                        return (
+                          <div key={d.device}>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="flex items-center gap-2 font-medium text-foreground capitalize">
+                                <Icon className="w-4 h-4 text-muted-foreground" />
+                                {d.device}
+                              </span>
+                              <span className="text-muted-foreground">
+                                <span className="text-foreground font-semibold tabular-nums">
+                                  {d.visitors.toLocaleString()}
+                                </span>{" "}
+                                visitors · {pct(d.conversionRate)} conv.
+                              </span>
+                            </div>
+                            <div className="h-2.5 w-full rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full bg-chart-1 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.max(share * 100, d.visitors > 0 ? 2 : 0)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </CardContent>
           </Card>
