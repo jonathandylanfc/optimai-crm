@@ -29,6 +29,11 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Eye,
+  MousePointerClick,
+  CreditCard,
+  Users,
+  Filter,
 } from "lucide-react";
 
 type AnalyticsData = {
@@ -103,9 +108,9 @@ function StatCard({
   );
 }
 
-type StoreTab = "overview" | "products" | "reviews" | "discounts";
+type StoreTab = "overview" | "funnel" | "products" | "reviews" | "discounts";
 
-const STORE_TABS: StoreTab[] = ["overview", "products", "reviews", "discounts"];
+const STORE_TABS: StoreTab[] = ["overview", "funnel", "products", "reviews", "discounts"];
 
 export function StoreAnalyticsSection() {
   const [tab, setTab] = useState<StoreTab>(() => {
@@ -124,6 +129,7 @@ export function StoreAnalyticsSection() {
     <div className="space-y-4">
       <SubTabs active={tab} onChange={changeTab} />
       {tab === "overview" && <StoreOverview />}
+      {tab === "funnel" && <FunnelSection />}
       {tab === "products" && <ProductsSection />}
       {tab === "reviews" && <ReviewsSection />}
       {tab === "discounts" && <DiscountsSection />}
@@ -134,6 +140,7 @@ export function StoreAnalyticsSection() {
 function SubTabs({ active, onChange }: { active: StoreTab; onChange: (t: StoreTab) => void }) {
   const tabs: { key: StoreTab; label: string }[] = [
     { key: "overview", label: "Overview" },
+    { key: "funnel", label: "Funnel" },
     { key: "products", label: "Products" },
     { key: "reviews", label: "Reviews" },
     { key: "discounts", label: "Discounts" },
@@ -218,6 +225,230 @@ function ReviewsSection() {
             </p>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+type FunnelStep = {
+  event: string;
+  label: string;
+  sessions: number;
+  events: number;
+  pctOfVisitors: number;
+  pctOfPrev: number;
+};
+
+type FunnelData = {
+  period: string;
+  funnel: FunnelStep[];
+  conversionRate: number;
+  totalEvents: number;
+  topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
+  updatedAt: string;
+};
+
+const FUNNEL_PERIODS: { key: string; label: string }[] = [
+  { key: "24h", label: "Last 24h" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "all", label: "All time" },
+];
+
+const STEP_ICONS: Record<string, React.ElementType> = {
+  PageView: Users,
+  ViewContent: Eye,
+  AddToCart: MousePointerClick,
+  InitiateCheckout: ShoppingCart,
+  Purchase: CreditCard,
+};
+
+const STEP_BAR: Record<string, string> = {
+  PageView: "bg-chart-1",
+  ViewContent: "bg-accent",
+  AddToCart: "bg-chart-3",
+  InitiateCheckout: "bg-blue-500",
+  Purchase: "bg-chart-1",
+};
+
+function pct(n: number) {
+  return `${(n * 100).toFixed(n >= 0.1 || n === 0 ? 0 : 1)}%`;
+}
+
+function FunnelSection() {
+  const [period, setPeriod] = useState<string>("7d");
+
+  const { data, isLoading, isError } = useQuery<FunnelData>({
+    queryKey: ["ca-funnel", period],
+    queryFn: async () => {
+      const res = await fetch(`/api/ca-funnel?period=${period}`);
+      if (!res.ok) throw new Error(`Failed to fetch funnel: ${res.status}`);
+      return res.json();
+    },
+    staleTime: 30_000,
+  });
+
+  const visitors = data?.funnel?.[0]?.sessions ?? 0;
+  const purchases = data?.funnel?.[data.funnel.length - 1]?.sessions ?? 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            <Filter className="w-5 h-5 text-accent" />
+            Conversion Funnel
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Real visitor journey through the storefront — every session, not just Meta&apos;s sample.
+          </p>
+        </div>
+        <div className="flex gap-1 rounded-lg border border-border p-0.5 bg-card">
+          {FUNNEL_PERIODS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                period === p.key
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isError && (
+        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+          <AlertTriangle className="w-10 h-10 opacity-40" />
+          <p className="font-medium">Could not load funnel data.</p>
+          <p className="text-sm">Check the store connection in Settings → Connected Stores.</p>
+        </div>
+      )}
+
+      {!isError && (
+        <>
+          {/* KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+              : [
+                  { label: "Visitors", value: visitors.toLocaleString(), icon: Users, iconColor: "text-chart-1" },
+                  {
+                    label: "Conversion Rate",
+                    value: pct(data!.conversionRate),
+                    sub: "visit → purchase",
+                    icon: TrendingUp,
+                    iconColor: "text-accent",
+                  },
+                  { label: "Purchases", value: purchases.toLocaleString(), icon: CreditCard, iconColor: "text-chart-1" },
+                  {
+                    label: "Tracked Events",
+                    value: data!.totalEvents.toLocaleString(),
+                    sub: "in this window",
+                    icon: MousePointerClick,
+                    iconColor: "text-chart-3",
+                  },
+                ].map((stat, i) => <StatCard key={stat.label} {...stat} delay={i} />)}
+          </div>
+
+          {/* Funnel bars */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Steps</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+                </div>
+              ) : visitors === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+                  <Eye className="w-8 h-8 opacity-40" />
+                  <p className="font-medium">No traffic recorded yet in this window.</p>
+                  <p className="text-sm">
+                    Once visitors hit the store, their journey shows up here within seconds. Try
+                    &quot;All time&quot; or a wider window.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {data!.funnel.map((step, i) => {
+                    const Icon = STEP_ICONS[step.event] ?? Eye;
+                    const bar = STEP_BAR[step.event] ?? "bg-accent";
+                    const dropOff = i === 0 ? 0 : 1 - step.pctOfPrev;
+                    return (
+                      <div key={step.event}>
+                        <div className="flex items-center justify-between mb-1 text-sm">
+                          <span className="flex items-center gap-2 font-medium text-foreground">
+                            <Icon className="w-4 h-4 text-muted-foreground" />
+                            {step.label}
+                          </span>
+                          <span className="flex items-center gap-3">
+                            <span className="font-semibold text-foreground tabular-nums">
+                              {step.sessions.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
+                              {pct(step.pctOfVisitors)}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="h-3 w-full rounded-full bg-secondary overflow-hidden">
+                          <div
+                            className={`h-full ${bar} rounded-full transition-all duration-500`}
+                            style={{ width: `${Math.max(step.pctOfVisitors * 100, step.sessions > 0 ? 2 : 0)}%` }}
+                          />
+                        </div>
+                        {i > 0 && dropOff > 0.0001 && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {pct(dropOff)} dropped off from previous step
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Most viewed products */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Most Viewed Products</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+              ) : !data!.topViewed.length ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No product views yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {data!.topViewed.map((p, i) => (
+                    <div key={p.productId} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">{p.views.toLocaleString()} views</p>
+                      </div>
+                      <Eye className="w-4 h-4 text-accent shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {!isLoading && data?.updatedAt && (
+            <p className="text-xs text-muted-foreground text-right">
+              Updated {new Date(data.updatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
