@@ -14,17 +14,21 @@ async function conn() {
 export interface CAVariant {
   id: number;
   name: string;
+  color: string | null;
   priceCents: number | null;
   stock: number;
   imageUrl: string | null;
+  images: string[];
   sortOrder: number;
 }
 
 export interface CAVariantPayload {
   name: string;
+  color: string | null;
   priceCents: number | null;
   stock: number;
   imageUrl: string | null;
+  images: string[];
 }
 
 export interface CAProduct {

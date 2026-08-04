@@ -493,63 +493,95 @@ function MultiImageUploader({
   );
 }
 
-function VariantImagePicker({
-  url,
+// Multiple photos per variant: thumbnails you can add to (upload or paste URL)
+// and remove individually. The first photo becomes the variant's cover.
+function VariantImagesPicker({
+  images,
   onChange,
 }: {
-  url: string | null;
-  onChange: (url: string | null) => void;
+  images: string[];
+  onChange: (urls: string[]) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  async function handleFiles(files: FileList) {
     setUploading(true);
     try {
-      const uploaded = await uploadToCloudinary(file);
-      onChange(uploaded);
+      const uploads = await Promise.all(
+        Array.from(files)
+          .filter((f) => f.type.startsWith("image/"))
+          .map((f) => uploadToCloudinary(f))
+      );
+      onChange([...images, ...uploads]);
     } catch {
-      /* surfaced by empty thumbnail */
+      /* surfaced by missing thumbnail */
     } finally {
       setUploading(false);
     }
   }
 
+  function addUrl() {
+    const u = urlInput.trim();
+    if (!u) return;
+    if (!images.includes(u)) onChange([...images, u]);
+    setUrlInput("");
+  }
+
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        title={url ? "Change variant photo" : "Add a photo for this variant"}
-        className="relative w-9 h-9 shrink-0 rounded-md border border-border bg-secondary overflow-hidden flex items-center justify-center hover:border-accent transition-colors"
-      >
-        {uploading ? (
-          <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-        ) : url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
-        )}
-      </button>
-      {url && !uploading && (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        {images.map((url, i) => (
+          <div key={`${url}-${i}`} className="relative w-10 h-10 rounded-md overflow-hidden border border-border bg-secondary">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="w-full h-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onChange(images.filter((_, idx) => idx !== i))}
+              title="Remove photo"
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+            {i === 0 && (
+              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center leading-tight">cover</span>
+            )}
+          </div>
+        ))}
         <button
           type="button"
-          onClick={() => onChange(null)}
-          title="Remove variant photo"
-          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          title="Upload photo(s)"
+          className="w-10 h-10 rounded-md border border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-accent hover:text-accent transition-colors"
         >
-          <X className="w-2.5 h-2.5" />
+          {uploading ? (
+            <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
         </button>
-      )}
+      </div>
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }}
+          placeholder="…or paste an image URL"
+          className="flex-1 rounded-md border border-border bg-secondary px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+        />
+        <button type="button" onClick={addUrl} className="text-xs font-medium text-accent hover:text-accent/80 px-1.5">Add</button>
+      </div>
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          if (e.target.files?.[0]) handleFile(e.target.files[0]);
+          if (e.target.files) handleFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -565,20 +597,20 @@ function VariantsEditor({
   onChange: (v: CAVariantPayload[]) => void;
 }) {
   function add() {
-    onChange([...variants, { name: "", priceCents: null, stock: 50, imageUrl: null }]);
+    onChange([...variants, { name: "", color: null, priceCents: null, stock: 50, imageUrl: null, images: [] }]);
   }
   function remove(i: number) {
     onChange(variants.filter((_, idx) => idx !== i));
   }
-  function update(i: number, field: keyof CAVariantPayload, value: string | number | null) {
-    const next = variants.map((v, idx) => idx === i ? { ...v, [field]: value } : v);
+  function update(i: number, field: keyof CAVariantPayload, value: string | number | null | string[]) {
+    const next = variants.map((v, idx) => (idx === i ? { ...v, [field]: value } : v));
     onChange(next);
   }
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Variants <span className="text-xs text-muted-foreground/60">(colors, sizes, etc.)</span></label>
+        <label className="text-sm font-medium text-muted-foreground">Variants <span className="text-xs text-muted-foreground/60">(size + color)</span></label>
         <button
           type="button"
           onClick={add}
@@ -591,46 +623,57 @@ function VariantsEditor({
         <p className="text-xs text-muted-foreground/50 italic">No variants — product has a single price and stock.</p>
       )}
       {variants.map((v, i) => (
-        <div key={i} className="grid grid-cols-[36px_1fr_90px_70px_28px] gap-1.5 items-center">
-          <VariantImagePicker url={v.imageUrl} onChange={(url) => update(i, "imageUrl", url)} />
-          <input
-            type="text"
-            value={v.name}
-            onChange={(e) => update(i, "name", e.target.value)}
-            placeholder="Name (e.g. Black, Medium)"
-            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-          />
-          <input
-            type="number"
-            min={0.01}
-            step={0.01}
-            value={v.priceCents !== null ? (v.priceCents / 100).toFixed(2) : ""}
-            onChange={(e) => {
-              const val = parseFloat(e.target.value);
-              update(i, "priceCents", isNaN(val) ? null : Math.round(val * 100));
-            }}
-            placeholder="Price"
-            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-          />
-          <input
-            type="number"
-            min={0}
-            value={v.stock}
-            onChange={(e) => update(i, "stock", parseInt(e.target.value, 10) || 0)}
-            placeholder="Stock"
-            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-          />
-          <button
-            type="button"
-            onClick={() => remove(i)}
-            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+        <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
+          <div className="grid grid-cols-[1fr_1fr_84px_64px_28px] gap-1.5 items-center">
+            <input
+              type="text"
+              value={v.name}
+              onChange={(e) => update(i, "name", e.target.value)}
+              placeholder="Size / option"
+              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+            />
+            <input
+              type="text"
+              value={v.color ?? ""}
+              onChange={(e) => update(i, "color", e.target.value || null)}
+              placeholder="Color (optional)"
+              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+            />
+            <input
+              type="number"
+              min={0.01}
+              step={0.01}
+              value={v.priceCents !== null ? (v.priceCents / 100).toFixed(2) : ""}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                update(i, "priceCents", isNaN(val) ? null : Math.round(val * 100));
+              }}
+              placeholder="Price"
+              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+            />
+            <input
+              type="number"
+              min={0}
+              value={v.stock}
+              onChange={(e) => update(i, "stock", parseInt(e.target.value, 10) || 0)}
+              placeholder="Stock"
+              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <VariantImagesPicker images={v.images} onChange={(imgs) => update(i, "images", imgs)} />
         </div>
       ))}
       {variants.length > 0 && (
-        <p className="text-[10px] text-muted-foreground/50">Tap the thumbnail to set a photo shown when this variant is selected. Leave price blank to use the product&apos;s base price.</p>
+        <p className="text-[10px] text-muted-foreground/50">
+          Give each variant a <strong>Size</strong> and (optionally) a <strong>Color</strong> — the storefront shows a size picker, then a color picker. Add multiple photos per variant; the first is the cover. Leave price blank to use the product&apos;s base price.
+        </p>
       )}
     </div>
   );
@@ -650,7 +693,7 @@ function ProductForm({
   const [imageUrl, setImageUrl] = useState(editProduct?.imageUrl ?? "");
   const [images, setImages] = useState<string[]>(editProduct?.images ?? []);
   const [variants, setVariants] = useState<CAVariantPayload[]>(
-    editProduct?.variants?.map((v) => ({ name: v.name, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl })) ?? []
+    editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: v.images ?? [] })) ?? []
   );
   const [isPending, startTransition] = useTransition();
   const isEditing = !!editProduct;
@@ -667,7 +710,7 @@ function ProductForm({
     if (JSON.stringify(images) !== JSON.stringify(nextImages)) {
       setImages(nextImages);
     }
-    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl })) ?? [];
+    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: v.images ?? [] })) ?? [];
     if (JSON.stringify(variants) !== JSON.stringify(nextVariants)) {
       setVariants(nextVariants);
     }
@@ -687,7 +730,8 @@ function ProductForm({
       stock: parseInt(fd.get("stock") as string, 10) || 0,
       popular: fd.get("popular") === "on",
       active: fd.get("active") === "on",
-      variants,
+      // Keep each variant's cover thumbnail in sync with its first photo.
+      variants: variants.map((v) => ({ ...v, imageUrl: v.images[0] ?? v.imageUrl ?? null })),
     };
     startTransition(async () => {
       if (isEditing) {
