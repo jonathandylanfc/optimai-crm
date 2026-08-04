@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Package, Search, Plus, DollarSign, Tag, Eye, EyeOff,
-  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors, Crop as CropIcon,
+  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors, Crop as CropIcon, Copy,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -605,6 +605,13 @@ function VariantsEditor({
   function remove(i: number) {
     onChange(variants.filter((_, idx) => idx !== i));
   }
+  // Clone a fully set-up variant (photos included) right below it, so you can
+  // just change the color instead of re-uploading the same shots.
+  function duplicate(i: number) {
+    const v = variants[i];
+    const copy: CAVariantPayload = { ...v, images: [...v.images] };
+    onChange([...variants.slice(0, i + 1), copy, ...variants.slice(i + 1)]);
+  }
   function update(i: number, field: keyof CAVariantPayload, value: string | number | null | string[]) {
     const next = variants.map((v, idx) => (idx === i ? { ...v, [field]: value } : v));
     onChange(next);
@@ -674,7 +681,7 @@ function VariantsEditor({
       )}
       {variants.map((v, i) => (
         <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
-          <div className="grid grid-cols-[1fr_1fr_84px_64px_28px] gap-1.5 items-center">
+          <div className="grid grid-cols-[1fr_1fr_84px_64px_auto] gap-1.5 items-center">
             <input
               type="text"
               value={v.name}
@@ -709,13 +716,24 @@ function VariantsEditor({
               placeholder="Stock"
               className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
             />
-            <button
-              type="button"
-              onClick={() => remove(i)}
-              className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => duplicate(i)}
+                title="Duplicate this variant (e.g. for another color)"
+                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                title="Remove variant"
+                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
           <VariantImagesPicker images={v.images} onChange={(imgs) => update(i, "images", imgs)} />
         </div>
