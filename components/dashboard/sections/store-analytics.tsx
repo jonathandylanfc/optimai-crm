@@ -239,12 +239,21 @@ type FunnelStep = {
   pctOfPrev: number;
 };
 
+type SourceRow = {
+  source: string;
+  visitors: number;
+  purchases: number;
+  revenueCents: number;
+  conversionRate: number;
+};
+
 type FunnelData = {
   period: string;
   funnel: FunnelStep[];
   conversionRate: number;
   totalEvents: number;
   topViewed: { productId: number; name: string; imageUrl: string; views: number }[];
+  bySource: SourceRow[];
   updatedAt: string;
 };
 
@@ -409,6 +418,47 @@ function FunnelSection() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Traffic sources */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-semibold">Traffic Sources</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                </div>
+              ) : !data!.bySource.length ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">No traffic yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Source</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Visitors</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Purchases</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Conv.</th>
+                        <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data!.bySource.map((s) => (
+                        <tr key={s.source} className="border-b border-border last:border-0 hover:bg-secondary/40 transition-colors">
+                          <td className="px-4 py-3 font-medium text-foreground capitalize">{s.source}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.visitors.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-foreground">{s.purchases.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{pct(s.conversionRate)}</td>
+                          <td className="px-4 py-3 text-right tabular-nums font-semibold text-accent">{formatDollars(s.revenueCents)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </CardContent>
