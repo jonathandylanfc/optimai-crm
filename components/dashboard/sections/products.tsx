@@ -589,6 +589,23 @@ function VariantImagesPicker({
   );
 }
 
+type SizeGroup = { size: string; rows: CAVariantPayload[] };
+
+function blankRow(size: string, color: string | null): CAVariantPayload {
+  return { name: size, color, priceCents: null, stock: 50, imageUrl: null, images: [] };
+}
+
+// Group the flat variant list by size (name), preserving order.
+function groupBySize(variants: CAVariantPayload[]): SizeGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, CAVariantPayload[]>();
+  for (const v of variants) {
+    if (!map.has(v.name)) { map.set(v.name, []); order.push(v.name); }
+    map.get(v.name)!.push(v);
+  }
+  return order.map((size) => ({ size, rows: map.get(size)! }));
+}
+
 function VariantsEditor({
   variants,
   onChange,
@@ -596,151 +613,141 @@ function VariantsEditor({
   variants: CAVariantPayload[];
   onChange: (v: CAVariantPayload[]) => void;
 }) {
-  const [bulkSize, setBulkSize] = useState("");
-  const [bulkColors, setBulkColors] = useState("");
+  const groups = groupBySize(variants);
 
-  function add() {
-    onChange([...variants, { name: "", color: null, priceCents: null, stock: 50, imageUrl: null, images: [] }]);
+  // Flatten groups back to the variant list the rest of the app expects,
+  // stamping each row's name with its group's size.
+  function commit(next: SizeGroup[]) {
+    onChange(next.flatMap((g) => g.rows.map((r) => ({ ...r, name: g.size }))));
   }
-  function remove(i: number) {
-    onChange(variants.filter((_, idx) => idx !== i));
-  }
-  // Clone a fully set-up variant (photos included) right below it, so you can
-  // just change the color instead of re-uploading the same shots.
-  function duplicate(i: number) {
-    const v = variants[i];
-    const copy: CAVariantPayload = { ...v, images: [...v.images] };
-    onChange([...variants.slice(0, i + 1), copy, ...variants.slice(i + 1)]);
-  }
-  function update(i: number, field: keyof CAVariantPayload, value: string | number | null | string[]) {
-    const next = variants.map((v, idx) => (idx === i ? { ...v, [field]: value } : v));
-    onChange(next);
-  }
-  // Add one variant per color for a given size in a single click.
-  function bulkAdd() {
-    const size = bulkSize.trim();
-    if (!size) return;
-    const colors = bulkColors.split(",").map((c) => c.trim()).filter(Boolean);
-    const rows: CAVariantPayload[] = (colors.length ? colors : [null]).map((color) => ({
-      name: size,
-      color,
-      priceCents: null,
-      stock: 50,
-      imageUrl: null,
-      images: [],
-    }));
-    onChange([...variants, ...rows]);
-    setBulkSize("");
-    setBulkColors("");
-  }
+
+  const renameSize = (gi: number, size: string) =>
+    commit(groups.map((g, i) => (i === gi ? { ...g, size } : g)));
+  const removeSize = (gi: number) => commit(groups.filter((_, i) => i !== gi));
+  const addSize = () => commit([...groups, { size: "", rows: [blankRow("", null)] }]);
+  const addColor = (gi: number) =>
+    commit(groups.map((g, i) => (i === gi ? { ...g, rows: [...g.rows, blankRow(g.size, "")] } : g)));
+  const updateRow = (gi: number, ri: number, field: keyof CAVariantPayload, value: string | number | null | string[]) =>
+    commit(groups.map((g, i) => (i === gi ? { ...g, rows: g.rows.map((r, j) => (j === ri ? { ...r, [field]: value } : r)) } : g)));
+  const removeRow = (gi: number, ri: number) =>
+    commit(
+      groups
+        .map((g, i) => (i === gi ? { ...g, rows: g.rows.filter((_, j) => j !== ri) } : g))
+        .filter((g) => g.rows.length > 0)
+    );
+  const duplicateRow = (gi: number, ri: number) =>
+    commit(
+      groups.map((g, i) => {
+        if (i !== gi) return g;
+        const r = g.rows[ri];
+        const copy: CAVariantPayload = { ...r, images: [...r.images] };
+        return { ...g, rows: [...g.rows.slice(0, ri + 1), copy, ...g.rows.slice(ri + 1)] };
+      })
+    );
+
+  const inputBase =
+    "rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent";
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-muted-foreground">Variants <span className="text-xs text-muted-foreground/60">(size + color)</span></label>
-        <button
-          type="button"
-          onClick={add}
-          className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add variant
+        <label className="text-sm font-medium text-muted-foreground">
+          Sizes &amp; colors <span className="text-xs text-muted-foreground/60">(one card per size)</span>
+        </label>
+        <button type="button" onClick={addSize} className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium">
+          <Plus className="w-3.5 h-3.5" /> Add size
         </button>
       </div>
-      {/* Bulk add: one size, many colors, in a single click */}
-      <div className="rounded-lg border border-dashed border-border p-2.5 space-y-1.5 bg-secondary/30">
-        <p className="text-[11px] font-medium text-muted-foreground">Quick add — one size, multiple colors</p>
-        <div className="grid grid-cols-[1fr_1.4fr_auto] gap-1.5">
-          <input
-            type="text"
-            value={bulkSize}
-            onChange={(e) => setBulkSize(e.target.value)}
-            placeholder="Size (e.g. Medium)"
-            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-          />
-          <input
-            type="text"
-            value={bulkColors}
-            onChange={(e) => setBulkColors(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); bulkAdd(); } }}
-            placeholder="Colors, comma-separated (Black, Blue, Pink)"
-            className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-          />
-          <button
-            type="button"
-            onClick={bulkAdd}
-            className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-accent/90"
-          >
-            Generate
-          </button>
-        </div>
-        <p className="text-[10px] text-muted-foreground/50">Creates one variant per color for that size. Then add photos/price to each.</p>
-      </div>
 
-      {variants.length === 0 && (
+      {groups.length === 0 && (
         <p className="text-xs text-muted-foreground/50 italic">No variants — product has a single price and stock.</p>
       )}
-      {variants.map((v, i) => (
-        <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
-          <div className="grid grid-cols-[1fr_1fr_84px_64px_auto] gap-1.5 items-center">
+
+      {groups.map((g, gi) => (
+        <div key={gi} className="rounded-lg border border-border p-3 space-y-2.5">
+          <div className="flex items-center gap-2">
             <input
               type="text"
-              value={v.name}
-              onChange={(e) => update(i, "name", e.target.value)}
-              placeholder="Size / option"
-              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
+              value={g.size}
+              onChange={(e) => renameSize(gi, e.target.value)}
+              placeholder="Size (e.g. Medium — 2 Compartments)"
+              className={`flex-1 font-medium ${inputBase}`}
             />
-            <input
-              type="text"
-              value={v.color ?? ""}
-              onChange={(e) => update(i, "color", e.target.value || null)}
-              placeholder="Color (optional)"
-              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-            />
-            <input
-              type="number"
-              min={0.01}
-              step={0.01}
-              value={v.priceCents !== null ? (v.priceCents / 100).toFixed(2) : ""}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                update(i, "priceCents", isNaN(val) ? null : Math.round(val * 100));
-              }}
-              placeholder="Price"
-              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-            />
-            <input
-              type="number"
-              min={0}
-              value={v.stock}
-              onChange={(e) => update(i, "stock", parseInt(e.target.value, 10) || 0)}
-              placeholder="Stock"
-              className="rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-            />
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => duplicate(i)}
-                title="Duplicate this variant (e.g. for another color)"
-                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                title="Remove variant"
-                className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+              {g.rows.length} {g.rows.length === 1 ? "variant" : "colors"}
+            </span>
+            <button
+              type="button"
+              onClick={() => removeSize(gi)}
+              title="Remove this size (and its colors)"
+              className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <VariantImagesPicker images={v.images} onChange={(imgs) => update(i, "images", imgs)} />
+
+          {g.rows.map((r, ri) => (
+            <div key={ri} className="rounded-md border border-border/60 bg-secondary/20 p-2 space-y-1.5">
+              <div className="grid grid-cols-[1fr_84px_64px_auto] gap-1.5 items-center">
+                <input
+                  type="text"
+                  value={r.color ?? ""}
+                  onChange={(e) => updateRow(gi, ri, "color", e.target.value || null)}
+                  placeholder="Color (e.g. Black) — leave blank for none"
+                  className={inputBase}
+                />
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={r.priceCents !== null ? (r.priceCents / 100).toFixed(2) : ""}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateRow(gi, ri, "priceCents", isNaN(val) ? null : Math.round(val * 100));
+                  }}
+                  placeholder="Price"
+                  className={inputBase}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={r.stock}
+                  onChange={(e) => updateRow(gi, ri, "stock", parseInt(e.target.value, 10) || 0)}
+                  placeholder="Stock"
+                  className={inputBase}
+                />
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => duplicateRow(gi, ri)}
+                    title="Duplicate this color (keeps its photos)"
+                    className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(gi, ri)}
+                    title="Remove this color"
+                    className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <VariantImagesPicker images={r.images} onChange={(imgs) => updateRow(gi, ri, "images", imgs)} />
+            </div>
+          ))}
+
+          <button type="button" onClick={() => addColor(gi)} className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 font-medium">
+            <Plus className="w-3 h-3" /> Add color to this size
+          </button>
         </div>
       ))}
-      {variants.length > 0 && (
+
+      {groups.length > 0 && (
         <p className="text-[10px] text-muted-foreground/50">
-          Give each variant a <strong>Size</strong> and (optionally) a <strong>Color</strong> — the storefront shows a size picker, then a color picker. Add multiple photos per variant; the first is the cover. Leave price blank to use the product&apos;s base price.
+          Each <strong>size</strong> is a card; add <strong>colors</strong> inside it, each with its own price, stock, and photos (first photo = cover). The storefront shows a size picker, then a color picker. Leave a color&apos;s price blank to use the product&apos;s base price.
         </p>
       )}
     </div>
