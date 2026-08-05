@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Package, Search, Plus, DollarSign, Tag, Eye, EyeOff,
-  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors, Crop as CropIcon, Copy,
+  Star, Pencil, Trash2, MoreHorizontal, Upload, ImageIcon, X, Sparkles, Scissors, Crop as CropIcon, Copy, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -187,11 +187,13 @@ function MultiImageUploader({
   coverUrl,
   onImagesChange,
   onCoverChange,
+  label = "Product Photos",
 }: {
   images: string[];
   coverUrl: string;
   onImagesChange: (urls: string[]) => void;
   onCoverChange: (url: string) => void;
+  label?: string;
 }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -321,13 +323,24 @@ function MultiImageUploader({
     if (coverUrl === url) onCoverChange(next[0] ?? "");
   }
 
+  // Reorder photos within the list. The first photo is treated as the cover
+  // wherever cover follows order (variants), and reordering is handy for the
+  // product gallery too.
+  function moveImage(from: number, to: number) {
+    if (to < 0 || to >= images.length || from === to) return;
+    const next = [...images];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onImagesChange(next);
+  }
+
   const allImages = images.length > 0 ? images : coverUrl ? [coverUrl] : [];
   const aiBusy = processing !== null;
   const hasAiSource = !!(urlInput.trim() || coverUrl.trim());
 
   return (
     <div className="space-y-3">
-      <label className="text-sm font-medium text-muted-foreground">Product Photos</label>
+      <label className="text-sm font-medium text-muted-foreground">{label}</label>
 
       {/* URL input row — always visible at top */}
       <div className="space-y-1.5">
@@ -410,8 +423,9 @@ function MultiImageUploader({
       {/* Photo grid */}
       {allImages.length > 0 && (
         <div className="grid grid-cols-3 gap-2">
-          {allImages.map((url) => {
+          {allImages.map((url, idx) => {
             const isCover = url === coverUrl;
+            const canReorder = images.length > 1 && idx < images.length;
             return (
               <div
                 key={url}
@@ -434,6 +448,28 @@ function MultiImageUploader({
                 >
                   <X className="w-3 h-3" />
                 </button>
+                {canReorder && (
+                  <div className="absolute inset-x-0 bottom-0 flex justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      title="Move earlier"
+                      disabled={idx === 0}
+                      onClick={(e) => { e.stopPropagation(); moveImage(idx, idx - 1); }}
+                      className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 disabled:opacity-0"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Move later"
+                      disabled={idx === images.length - 1}
+                      onClick={(e) => { e.stopPropagation(); moveImage(idx, idx + 1); }}
+                      className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 disabled:opacity-0"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -486,102 +522,6 @@ function MultiImageUploader({
         className="hidden"
         onChange={(e) => {
           if (e.target.files?.length) handleFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
-    </div>
-  );
-}
-
-// Multiple photos per variant: thumbnails you can add to (upload or paste URL)
-// and remove individually. The first photo becomes the variant's cover.
-function VariantImagesPicker({
-  images,
-  onChange,
-}: {
-  images: string[];
-  onChange: (urls: string[]) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function handleFiles(files: FileList) {
-    setUploading(true);
-    try {
-      const uploads = await Promise.all(
-        Array.from(files)
-          .filter((f) => f.type.startsWith("image/"))
-          .map((f) => uploadToCloudinary(f))
-      );
-      onChange([...images, ...uploads]);
-    } catch {
-      /* surfaced by missing thumbnail */
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  function addUrl() {
-    const u = urlInput.trim();
-    if (!u) return;
-    if (!images.includes(u)) onChange([...images, u]);
-    setUrlInput("");
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        {images.map((url, i) => (
-          <div key={`${url}-${i}`} className="relative w-10 h-10 rounded-md overflow-hidden border border-border bg-secondary">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt="" className="w-full h-full object-cover" />
-            <button
-              type="button"
-              onClick={() => onChange(images.filter((_, idx) => idx !== i))}
-              title="Remove photo"
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90"
-            >
-              <X className="w-2.5 h-2.5" />
-            </button>
-            {i === 0 && (
-              <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center leading-tight">cover</span>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-          title="Upload photo(s)"
-          className="w-10 h-10 rounded-md border border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-accent hover:text-accent transition-colors"
-        >
-          {uploading ? (
-            <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Plus className="w-4 h-4" />
-          )}
-        </button>
-      </div>
-      <div className="flex gap-1.5">
-        <input
-          type="text"
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addUrl(); } }}
-          placeholder="…or paste an image URL"
-          className="flex-1 rounded-md border border-border bg-secondary px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-accent"
-        />
-        <button type="button" onClick={addUrl} className="text-xs font-medium text-accent hover:text-accent/80 px-1.5">Add</button>
-      </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          if (e.target.files) handleFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -735,7 +675,13 @@ function VariantsEditor({
                   </button>
                 </div>
               </div>
-              <VariantImagesPicker images={r.images} onChange={(imgs) => updateRow(gi, ri, "images", imgs)} />
+              <MultiImageUploader
+                label="Photos (first = cover; drag arrows to reorder)"
+                images={r.images}
+                coverUrl={r.images[0] ?? ""}
+                onImagesChange={(imgs) => updateRow(gi, ri, "images", imgs)}
+                onCoverChange={(url) => updateRow(gi, ri, "images", [url, ...r.images.filter((u) => u !== url)])}
+              />
             </div>
           ))}
 
