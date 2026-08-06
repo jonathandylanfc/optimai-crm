@@ -477,6 +477,8 @@ function MultiImageUploader({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
+            onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files); }}
+            onDragOver={(e) => e.preventDefault()}
             disabled={uploading}
             className="aspect-square rounded-lg border-2 border-dashed border-border hover:border-accent/50 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground hover:text-foreground bg-secondary/30 hover:bg-secondary/50 disabled:opacity-50"
           >
@@ -485,7 +487,7 @@ function MultiImageUploader({
             ) : (
               <>
                 <Upload className="w-5 h-5" />
-                <span className="text-[10px] font-medium">Upload</span>
+                <span className="text-[10px] font-medium">Upload or drop</span>
               </>
             )}
           </button>
@@ -558,7 +560,9 @@ function VariantsEditor({
   // Flatten groups back to the variant list the rest of the app expects,
   // stamping each row's name with its group's size.
   function commit(next: SizeGroup[]) {
-    onChange(next.flatMap((g) => g.rows.map((r) => ({ ...r, name: g.size }))));
+    // Drop any empty image URLs so a blank/broken entry can never stick as a
+    // "black" cover photo.
+    onChange(next.flatMap((g) => g.rows.map((r) => ({ ...r, name: g.size, images: r.images.filter(Boolean) }))));
   }
 
   const renameSize = (gi: number, size: string) =>
@@ -679,8 +683,11 @@ function VariantsEditor({
                 label="Photos (first = cover; drag arrows to reorder)"
                 images={r.images}
                 coverUrl={r.images[0] ?? ""}
-                onImagesChange={(imgs) => updateRow(gi, ri, "images", imgs)}
-                onCoverChange={(url) => updateRow(gi, ri, "images", [url, ...r.images.filter((u) => u !== url)])}
+                onImagesChange={(imgs) => updateRow(gi, ri, "images", imgs.filter(Boolean))}
+                onCoverChange={(url) => {
+                  if (!url) return; // never let an empty cover re-add a blank photo
+                  updateRow(gi, ri, "images", [url, ...r.images.filter((u) => u && u !== url)]);
+                }}
               />
             </div>
           ))}
@@ -714,7 +721,7 @@ function ProductForm({
   const [imageUrl, setImageUrl] = useState(editProduct?.imageUrl ?? "");
   const [images, setImages] = useState<string[]>(editProduct?.images ?? []);
   const [variants, setVariants] = useState<CAVariantPayload[]>(
-    editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: v.images ?? [] })) ?? []
+    editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? []
   );
   const [isPending, startTransition] = useTransition();
   const isEditing = !!editProduct;
@@ -731,7 +738,7 @@ function ProductForm({
     if (JSON.stringify(images) !== JSON.stringify(nextImages)) {
       setImages(nextImages);
     }
-    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: v.images ?? [] })) ?? [];
+    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? [];
     if (JSON.stringify(variants) !== JSON.stringify(nextVariants)) {
       setVariants(nextVariants);
     }
