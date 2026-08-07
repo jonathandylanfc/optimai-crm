@@ -120,9 +120,9 @@ function StatCard({
   );
 }
 
-type StoreTab = "overview" | "funnel" | "products" | "reviews" | "discounts";
+type StoreTab = "overview" | "funnel" | "products" | "customers" | "reviews" | "discounts";
 
-const STORE_TABS: StoreTab[] = ["overview", "funnel", "products", "reviews", "discounts"];
+const STORE_TABS: StoreTab[] = ["overview", "funnel", "products", "customers", "reviews", "discounts"];
 
 export function StoreAnalyticsSection() {
   const [tab, setTab] = useState<StoreTab>(() => {
@@ -143,6 +143,7 @@ export function StoreAnalyticsSection() {
       {tab === "overview" && <StoreOverview />}
       {tab === "funnel" && <FunnelSection />}
       {tab === "products" && <ProductsSection />}
+      {tab === "customers" && <StoreCustomersSection />}
       {tab === "reviews" && <ReviewsSection />}
       {tab === "discounts" && <DiscountsSection />}
     </div>
@@ -154,6 +155,7 @@ function SubTabs({ active, onChange }: { active: StoreTab; onChange: (t: StoreTa
     { key: "overview", label: "Overview" },
     { key: "funnel", label: "Funnel" },
     { key: "products", label: "Products" },
+    { key: "customers", label: "Customers" },
     { key: "reviews", label: "Reviews" },
     { key: "discounts", label: "Discounts" },
   ];
@@ -691,6 +693,79 @@ function FunnelSection() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+type StoreCustomer = {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: string;
+  orderCount: number;
+  totalSpentCents: number;
+};
+
+function StoreCustomersSection() {
+  const { data, isLoading, isError } = useQuery<{ count: number; customers: StoreCustomer[] }>({
+    queryKey: ["ca-customers"],
+    queryFn: async () => {
+      const res = await fetch("/api/ca-customers");
+      if (!res.ok) throw new Error(`Failed to fetch customers: ${res.status}`);
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Account Holders</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Everyone who created a storefront account{data ? ` — ${data.count} total` : ""}
+        </p>
+      </div>
+
+      {isError && <p className="text-sm text-destructive">Could not load customer accounts.</p>}
+
+      <Card className="border-border bg-card">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+            </div>
+          ) : !data?.customers.length ? (
+            <p className="text-sm text-muted-foreground py-10 text-center">No accounts yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Name</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Email</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Orders</th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Spent</th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.customers.map((c) => (
+                    <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/40 transition-colors">
+                      <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{c.email}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-foreground">{c.orderCount}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-accent">{formatDollars(c.totalSpentCents)}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(c.createdAt.replace(" ", "T")).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
