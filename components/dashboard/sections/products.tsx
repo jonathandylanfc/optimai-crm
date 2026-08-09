@@ -41,6 +41,44 @@ import {
 } from "@/lib/hooks/use-ca-products";
 import type { CAProduct, CAProductPayload, CAVariantPayload } from "@/app/actions/ca-products";
 
+// Margin targets. The welcome discount is what actually squeezes margin, so we
+// report profit on the DISCOUNTED price — that's the worst realistic case.
+const DISCOUNT_PCT = 15;
+const TARGET_MARGIN_PCT = 7.5;
+
+type MarginInfo = {
+  netCents: number; // what you receive after the discount
+  profitCents: number;
+  marginPct: number; // profit as a % of cost
+  ok: boolean;
+  loss: boolean;
+};
+
+function marginOf(priceCents: number | null, costCents: number | null): MarginInfo | null {
+  if (!priceCents || costCents == null || costCents <= 0) return null;
+  const netCents = Math.round(priceCents * (1 - DISCOUNT_PCT / 100));
+  const profitCents = netCents - costCents;
+  const marginPct = (profitCents / costCents) * 100;
+  return { netCents, profitCents, marginPct, ok: marginPct >= TARGET_MARGIN_PCT, loss: profitCents < 0 };
+}
+
+// Small inline badge showing profit after the welcome discount.
+function MarginBadge({ priceCents, costCents }: { priceCents: number | null; costCents: number | null }) {
+  const m = marginOf(priceCents, costCents);
+  if (!m) return <span className="text-[10px] text-muted-foreground/50">add cost to see margin</span>;
+  const tone = m.loss
+    ? "text-destructive"
+    : m.ok
+      ? "text-chart-1"
+      : "text-chart-3";
+  return (
+    <span className={`text-[11px] font-medium ${tone}`} title={`After ${DISCOUNT_PCT}% off you receive $${(m.netCents / 100).toFixed(2)}`}>
+      {m.loss ? "⚠ loses " : "+"}${Math.abs(m.profitCents / 100).toFixed(2)} ({m.marginPct.toFixed(1)}%)
+      {!m.ok && !m.loss && " · below target"}
+    </span>
+  );
+}
+
 const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "v4h2yok3";
 const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "OPTIMAI";
 
@@ -534,7 +572,7 @@ function MultiImageUploader({
 type SizeGroup = { size: string; rows: CAVariantPayload[] };
 
 function blankRow(size: string, color: string | null): CAVariantPayload {
-  return { name: size, color, priceCents: null, stock: 50, imageUrl: null, images: [] };
+  return { name: size, color, priceCents: null, costCents: null, stock: 50, imageUrl: null, images: [] };
 }
 
 // Group the flat variant list by size (name), preserving order.
@@ -632,12 +670,25 @@ function VariantsEditor({
 
           {g.rows.map((r, ri) => (
             <div key={ri} className="rounded-md border border-border/60 bg-secondary/20 p-2 space-y-1.5">
-              <div className="grid grid-cols-[1fr_84px_64px_auto] gap-1.5 items-center">
+              <div className="grid grid-cols-[1fr_84px_84px_64px_auto] gap-1.5 items-center">
                 <input
                   type="text"
                   value={r.color ?? ""}
                   onChange={(e) => updateRow(gi, ri, "color", e.target.value || null)}
                   placeholder="Color (e.g. Black) — leave blank for none"
+                  className={inputBase}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={r.costCents !== null && r.costCents !== undefined ? (r.costCents / 100).toFixed(2) : ""}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateRow(gi, ri, "costCents", isNaN(val) ? null : Math.round(val * 100));
+                  }}
+                  placeholder="Cost"
+                  title="What you pay your supplier"
                   className={inputBase}
                 />
                 <input
@@ -678,6 +729,9 @@ function VariantsEditor({
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
+              </div>
+              <div className="px-0.5">
+                <MarginBadge priceCents={r.priceCents} costCents={r.costCents} />
               </div>
               <MultiImageUploader
                 label="Photos (first = cover; drag arrows to reorder)"
@@ -721,7 +775,7 @@ function ProductForm({
   const [imageUrl, setImageUrl] = useState(editProduct?.imageUrl ?? "");
   const [images, setImages] = useState<string[]>(editProduct?.images ?? []);
   const [variants, setVariants] = useState<CAVariantPayload[]>(
-    editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? []
+    editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, costCents: v.costCents ?? null, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? []
   );
   const [isPending, startTransition] = useTransition();
   const isEditing = !!editProduct;
@@ -738,7 +792,7 @@ function ProductForm({
     if (JSON.stringify(images) !== JSON.stringify(nextImages)) {
       setImages(nextImages);
     }
-    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? [];
+    const nextVariants = editProduct?.variants?.map((v) => ({ name: v.name, color: v.color, priceCents: v.priceCents, costCents: v.costCents ?? null, stock: v.stock, imageUrl: v.imageUrl, images: (v.images ?? []).filter(Boolean) })) ?? [];
     if (JSON.stringify(variants) !== JSON.stringify(nextVariants)) {
       setVariants(nextVariants);
     }
@@ -748,11 +802,14 @@ function ProductForm({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const priceDollars = parseFloat(fd.get("price") as string) || 0;
+    const costRaw = (fd.get("cost") as string | null)?.trim();
+    const costDollars = costRaw ? parseFloat(costRaw) : NaN;
     const payload: CAProductPayload = {
       name: fd.get("name") as string,
       description: fd.get("description") as string,
       category: fd.get("category") as string,
       priceCents: Math.round(priceDollars * 100),
+      costCents: isNaN(costDollars) ? null : Math.round(costDollars * 100),
       imageUrl,
       images,
       stock: parseInt(fd.get("stock") as string, 10) || 0,
@@ -823,10 +880,31 @@ function ProductForm({
               />
             </div>
             <div className="space-y-1">
+              <label className="text-sm font-medium text-muted-foreground">Cost ($)</label>
+              <Input
+                name="cost"
+                type="number"
+                min={0}
+                step={0.01}
+                defaultValue={editProduct?.costCents != null ? (editProduct.costCents / 100).toFixed(2) : ""}
+                placeholder="What you pay"
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">Stock</label>
               <Input name="stock" type="number" min={0} defaultValue={editProduct?.stock ?? 0} className={inputClass} />
             </div>
           </div>
+          <p className="-mt-2 text-xs">
+            <MarginBadge
+              priceCents={editProduct?.priceCents ?? null}
+              costCents={editProduct?.costCents ?? null}
+            />
+            <span className="ml-1 text-muted-foreground/50">
+              — profit after the {DISCOUNT_PCT}% welcome discount (target {TARGET_MARGIN_PCT}%)
+            </span>
+          </p>
 
           <VariantsEditor variants={variants} onChange={setVariants} />
 
@@ -1081,6 +1159,9 @@ export function ProductsSection() {
                   <span className="text-sm font-semibold text-accent">
                     ${(product.priceCents / 100).toFixed(2)}
                   </span>
+                </div>
+                <div className="mt-1">
+                  <MarginBadge priceCents={product.priceCents} costCents={product.costCents} />
                 </div>
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-muted-foreground">Stock: {product.stock}</p>

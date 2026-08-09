@@ -16,6 +16,7 @@ export interface CAVariant {
   name: string;
   color: string | null;
   priceCents: number | null;
+  costCents: number | null;
   stock: number;
   imageUrl: string | null;
   images: string[];
@@ -26,6 +27,7 @@ export interface CAVariantPayload {
   name: string;
   color: string | null;
   priceCents: number | null;
+  costCents: number | null;
   stock: number;
   imageUrl: string | null;
   images: string[];
@@ -37,6 +39,7 @@ export interface CAProduct {
   description: string;
   category: string;
   priceCents: number;
+  costCents: number | null;
   imageUrl: string;
   images: string[];
   stock: number;
@@ -51,6 +54,7 @@ export interface CAProductPayload {
   description: string;
   category: string;
   priceCents: number;
+  costCents: number | null;
   imageUrl: string;
   images: string[];
   stock: number;
