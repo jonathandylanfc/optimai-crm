@@ -245,14 +245,31 @@ function MultiImageUploader({
     setUploadError("");
     setUploading(true);
     try {
-      const uploads = await Promise.all(
+      // allSettled so one bad file doesn't discard the rest of the batch.
+      const results = await Promise.allSettled(
         Array.from(files)
           .filter((f) => f.type.startsWith("image/"))
           .map((f) => uploadToCloudinary(f))
       );
+      const uploads = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+        .map((r) => r.value);
+      const failed = results.length - uploads.length;
+      if (failed > 0) {
+        const firstError = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        setUploadError(
+          `${failed} of ${results.length} photo${results.length === 1 ? "" : "s"} failed to upload` +
+            (firstError?.reason instanceof Error ? ` — ${firstError.reason.message}` : "")
+        );
+      }
+      if (uploads.length === 0) return;
+
       const next = [...images, ...uploads];
+      // Set the cover FIRST, then the full list. A parent that derives its cover
+      // from images[0] rewrites the array on cover change; doing it in this order
+      // means the complete list is what lands, so every photo is kept.
+      if (!coverUrl) onCoverChange(next[0]);
       onImagesChange(next);
-      if (!coverUrl && next.length > 0) onCoverChange(next[0]);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -740,6 +757,9 @@ function VariantsEditor({
                 onImagesChange={(imgs) => updateRow(gi, ri, "images", imgs.filter(Boolean))}
                 onCoverChange={(url) => {
                   if (!url) return; // never let an empty cover re-add a blank photo
+                  // No-op if the photo isn't in the list yet (a fresh upload sets
+                  // the cover before the list lands) — otherwise we'd drop the rest.
+                  if (!r.images.includes(url)) return;
                   updateRow(gi, ri, "images", [url, ...r.images.filter((u) => u && u !== url)]);
                 }}
               />
