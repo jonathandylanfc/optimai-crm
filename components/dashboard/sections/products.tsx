@@ -941,6 +941,7 @@ function ProductForm({
 export function ProductsSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [visibility, setVisibility] = useState<"all" | "live" | "hidden">("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<CAProduct | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CAProduct | null>(null);
@@ -957,8 +958,12 @@ export function ProductsSection() {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === "All" || p.category === activeCategory;
-    return matchesSearch && matchesCategory;
+    const matchesVisibility =
+      visibility === "all" || (visibility === "live" ? p.active : !p.active);
+    return matchesSearch && matchesCategory && matchesVisibility;
   });
+
+  const hiddenCount = (products ?? []).filter((p) => !p.active).length;
 
   const totalProducts = (products ?? []).length;
   const activeCount = (products ?? []).filter((p) => p.active).length;
@@ -1038,6 +1043,38 @@ export function ProductsSection() {
           Add Product
         </Button>
       </div>
+
+      {/* Visibility filter — find hidden/unpublished products */}
+      {!isLoading && (products ?? []).length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {([
+            { key: "all", label: "All", icon: Package, count: (products ?? []).length },
+            { key: "live", label: "Live on store", icon: Eye, count: activeCount },
+            { key: "hidden", label: "Hidden", icon: EyeOff, count: hiddenCount },
+          ] as const).map(({ key, label, icon: Icon, count }) => {
+            const on = visibility === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setVisibility(key)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
+                  on
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {label}
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  on ? "bg-background/20 text-background" : "bg-border text-muted-foreground"
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Category tabs */}
       {!isLoading && categories.length > 1 && (
