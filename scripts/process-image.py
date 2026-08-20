@@ -56,31 +56,65 @@ def _remove(img_bytes: bytes) -> bytes:
             return remove(img_bytes, session=session, post_process_mask=True)
         return remove(img_bytes)
 
-def apply_crop(img_bytes: bytes, crop: dict) -> bytes:
-    """Crop to a normalized rect {x, y, w, h} (fractions 0-1) before processing.
-    Lets the user isolate one item in a photo that has several."""
-    img = Image.open(io.BytesIO(img_bytes))
+def _rect_to_box(rect: dict, W: int, H: int):
+    """Normalized rect {x, y, w, h} (fractions 0-1) -> pixel box."""
+    left = max(0, int(rect.get("x", 0) * W))
+    top = max(0, int(rect.get("y", 0) * H))
+    right = min(W, int((rect.get("x", 0) + rect.get("w", 1)) * W))
+    bottom = min(H, int((rect.get("y", 0) + rect.get("h", 1)) * H))
+    return (left, top, right, bottom)
+
+def cutout_regions(img_bytes: bytes, rects: list) -> bytes:
+    """Keep only the selected regions, background removed, composited back onto
+    one transparent canvas in their original relative positions.
+
+    Each region is segmented on its own rather than masking the full frame in a
+    single pass: a tight crop around one subject is what the model handles best,
+    and it stops a large subject's mask from swallowing a smaller one beside it.
+    The canvas is the union bounding box of the selections, so the pieces keep
+    their spacing and alignment instead of being jammed together.
+    """
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
     W, H = img.size
-    left = max(0, int(crop.get("x", 0) * W))
-    top = max(0, int(crop.get("y", 0) * H))
-    right = min(W, int((crop.get("x", 0) + crop.get("w", 1)) * W))
-    bottom = min(H, int((crop.get("y", 0) + crop.get("h", 1)) * H))
-    if right - left < 2 or bottom - top < 2:
-        return img_bytes  # degenerate selection — fall back to whole image
-    cropped = img.crop((left, top, right, bottom))
+
+    boxes = [_rect_to_box(r, W, H) for r in rects if isinstance(r, dict)]
+    boxes = [b for b in boxes if b[2] - b[0] >= 2 and b[3] - b[1] >= 2]
+    if not boxes:
+        return _remove(img_bytes)  # degenerate selection — fall back to whole image
+
+    min_x = min(b[0] for b in boxes)
+    min_y = min(b[1] for b in boxes)
+    max_x = max(b[2] for b in boxes)
+    max_y = max(b[3] for b in boxes)
+
+    canvas = Image.new("RGBA", (max_x - min_x, max_y - min_y), (0, 0, 0, 0))
+    for b in boxes:
+        buf = io.BytesIO()
+        img.crop(b).save(buf, format="PNG")
+        try:
+            piece = Image.open(io.BytesIO(_remove(buf.getvalue()))).convert("RGBA")
+        except Exception as e:  # noqa: BLE001
+            # One bad region shouldn't lose the others — keep it un-cut.
+            print(f"region segmentation failed, keeping as-is: {e}", file=sys.stderr)
+            piece = img.crop(b).convert("RGBA")
+        canvas.alpha_composite(piece, (b[0] - min_x, b[1] - min_y))
+
     out = io.BytesIO()
-    cropped.convert("RGBA").save(out, format="PNG")
+    canvas.save(out, format="PNG")
     return out.getvalue()
 
 def remove_bg(img_bytes: bytes) -> bytes:
     return _remove(img_bytes)
 
 def enhance(img_bytes: bytes, size: int = 800, padding: int = 60) -> bytes:
-    from PIL import ImageEnhance, ImageFilter
+    """Background-remove the whole frame, then style it."""
+    return style(Image.open(io.BytesIO(_remove(img_bytes))).convert("RGBA"), size, padding)
 
-    # 1. AI background removal (better model + alpha-matted edges)
-    transparent = _remove(img_bytes)
-    fg = Image.open(io.BytesIO(transparent)).convert("RGBA")
+def style(fg: Image.Image, size: int = 800, padding: int = 60) -> bytes:
+    """Studio treatment for an already-transparent cutout: trim, sharpen, scale
+    to the canvas and drop a soft shadow. Split out from enhance() so a
+    multi-region cutout can be styled the same way."""
+    from PIL import ImageEnhance, ImageFilter
 
     # 2. Crop out transparent border so we're working with just the product
     bbox = fg.getbbox()
@@ -128,13 +162,20 @@ if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "remove-bg"
     crop_arg = sys.argv[2] if len(sys.argv) > 2 else None
     raw = sys.stdin.buffer.read()
+
+    # The selection argument is a list of regions to keep. A bare object is
+    # still accepted so an older client sending one rect keeps working.
+    rects = []
     if crop_arg:
         try:
-            crop = json.loads(crop_arg)
-            raw = apply_crop(raw, crop)
+            parsed = json.loads(crop_arg)
+            rects = parsed if isinstance(parsed, list) else [parsed]
         except Exception as e:  # noqa: BLE001
-            print(f"crop skipped: {e}", file=sys.stderr)
+            print(f"selection skipped: {e}", file=sys.stderr)
+
+    transparent = cutout_regions(raw, rects) if rects else _remove(raw)
+
     if mode == "enhance":
-        sys.stdout.buffer.write(enhance(raw))
+        sys.stdout.buffer.write(style(Image.open(io.BytesIO(transparent)).convert("RGBA")))
     else:
-        sys.stdout.buffer.write(remove_bg(raw))
+        sys.stdout.buffer.write(transparent)

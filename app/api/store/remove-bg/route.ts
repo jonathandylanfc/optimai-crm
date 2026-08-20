@@ -5,12 +5,12 @@ import path from "path";
 type Mode = "remove-bg" | "enhance";
 type CropRect = { x: number; y: number; w: number; h: number };
 
-function processImage(imageBuffer: Buffer, mode: Mode, crop?: CropRect): Promise<Buffer> {
+function processImage(imageBuffer: Buffer, mode: Mode, crops?: CropRect[]): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(process.cwd(), "scripts", "process-image.py");
     const args = [scriptPath, mode];
-    if (crop) args.push(JSON.stringify(crop));
-    console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode} crop=${crop ? "yes" : "no"}`);
+    if (crops?.length) args.push(JSON.stringify(crops));
+    console.log(`[remove-bg] cwd=${process.cwd()} script=${scriptPath} mode=${mode} regions=${crops?.length ?? 0}`);
     const proc = spawn("/usr/bin/python3", args, { timeout: 90_000, shell: false });
 
     const chunks: Buffer[] = [];
@@ -60,21 +60,27 @@ async function uploadToCloudinary(pngBuffer: Buffer): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { url?: string; mode?: Mode; crop?: CropRect };
-  const { url, mode = "remove-bg", crop } = body;
+  const body = (await req.json()) as { url?: string; mode?: Mode; crop?: CropRect; crops?: CropRect[] };
+  const { url, mode = "remove-bg", crop, crops } = body;
 
   if (!url || typeof url !== "string") {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
 
-  // Ignore a full-frame or invalid crop — treat as no crop
-  const validCrop =
-    crop &&
-    [crop.x, crop.y, crop.w, crop.h].every((n) => typeof n === "number" && n >= 0 && n <= 1) &&
-    crop.w > 0.02 && crop.h > 0.02 &&
-    !(crop.x === 0 && crop.y === 0 && crop.w === 1 && crop.h === 1)
-      ? crop
-      : undefined;
+  // Accept a list of regions to keep; a lone `crop` is still honoured so an
+  // older client mid-deploy doesn't break.
+  const requested = Array.isArray(crops) ? crops : crop ? [crop] : [];
+
+  // Drop anything invalid, too small to be a real selection, or covering the
+  // whole frame — a full-frame region is the same as no selection at all.
+  const validCrops = requested.filter(
+    (c) =>
+      c &&
+      [c.x, c.y, c.w, c.h].every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1) &&
+      c.w > 0.02 &&
+      c.h > 0.02 &&
+      !(c.x === 0 && c.y === 0 && c.w === 1 && c.h === 1)
+  );
 
   let imageBuffer: Buffer;
   try {
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest) {
 
   let pngBuffer: Buffer;
   try {
-    pngBuffer = await processImage(imageBuffer, mode, validCrop);
+    pngBuffer = await processImage(imageBuffer, mode, validCrops);
   } catch (err) {
     return NextResponse.json({ error: `Image processing failed: ${String(err)}` }, { status: 500 });
   }

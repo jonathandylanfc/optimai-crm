@@ -87,6 +87,7 @@ export function OrdersSection() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [shipTarget, setShipTarget] = useState<DisplayOrder | null>(null);
   const [trackingInput, setTrackingInput] = useState("");
+  const [shipNotify, setShipNotify] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState("");
 
@@ -115,7 +116,10 @@ export function OrdersSection() {
   const fulfilledCount = orders.filter((o) => o.crmStatus === "fulfilled").length;
   const fulfillmentRate = orders.length ? Math.round((fulfilledCount / orders.length) * 100) : 0;
 
-  async function updateStoreOrder(storeOrderId: number, payload: { status?: StoreStatus; trackingNumber?: string | null }) {
+  async function updateStoreOrder(
+    storeOrderId: number,
+    payload: { status?: StoreStatus; trackingNumber?: string | null; notify?: boolean }
+  ) {
     setIsUpdating(true);
     setUpdateError("");
     try {
@@ -144,10 +148,12 @@ export function OrdersSection() {
     const ok = await updateStoreOrder(shipTarget.id, {
       status: "shipped",
       trackingNumber: trackingInput.trim() || null,
+      notify: shipNotify,
     });
     if (ok) {
       setShipTarget(null);
       setTrackingInput("");
+      setShipNotify(true);
     }
   }
 
@@ -312,21 +318,29 @@ export function OrdersSection() {
                             <DropdownMenuContent align="end" className="w-48">
                               {(order.status === "pending" || order.status === "processing") && (
                                 <DropdownMenuItem
-                                  onClick={() => { setTrackingInput(order.trackingNumber ?? ""); setUpdateError(""); setShipTarget(order); }}
+                                  onClick={() => { setTrackingInput(order.trackingNumber ?? ""); setUpdateError(""); setShipNotify(true); setShipTarget(order); }}
                                 >
                                   <Truck className="w-3.5 h-3.5 mr-2" />
                                   Mark Shipped…
                                 </DropdownMenuItem>
                               )}
-                              {order.status === "shipped" && (
-                                <DropdownMenuItem
-                                  onClick={() => updateStoreOrder(order.id, { status: "delivered" })}
-                                  disabled={isUpdating}
-                                >
-                                  <PackageCheck className="w-3.5 h-3.5 mr-2" />
-                                  Mark Delivered
-                                </DropdownMenuItem>
-                              )}
+                              {/* Available from processing too, not just shipped: an order
+                                  that already arrived shouldn't have to pass through
+                                  "shipped" (and fire that email) to be recorded correctly. */}
+                              <DropdownMenuItem
+                                onClick={() => updateStoreOrder(order.id, { status: "delivered" })}
+                                disabled={isUpdating}
+                              >
+                                <PackageCheck className="w-3.5 h-3.5 mr-2" />
+                                Mark Delivered
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => updateStoreOrder(order.id, { status: "delivered", notify: false })}
+                                disabled={isUpdating}
+                              >
+                                <PackageCheck className="w-3.5 h-3.5 mr-2 opacity-50" />
+                                Mark Delivered — no email
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-chart-3 focus:text-chart-3"
@@ -348,15 +362,16 @@ export function OrdersSection() {
         </div>
       </Card>
 
-      <Dialog open={!!shipTarget} onOpenChange={(o) => { if (!o) { setShipTarget(null); setTrackingInput(""); setUpdateError(""); } }}>
+      <Dialog open={!!shipTarget} onOpenChange={(o) => { if (!o) { setShipTarget(null); setTrackingInput(""); setUpdateError(""); setShipNotify(true); } }}>
         <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Mark order #{shipTarget?.id} as shipped</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <p className="text-sm text-muted-foreground">
-              {shipTarget?.customerName} will receive a shipping notification email
-              {trackingInput.trim() ? " with the tracking number below" : ""}.
+              {shipNotify
+                ? `${shipTarget?.customerName} will receive a shipping notification email${trackingInput.trim() ? " with the tracking number below" : ""}.`
+                : `The order will be marked shipped without emailing ${shipTarget?.customerName}.`}
             </p>
             <div className="space-y-1">
               <label className="text-sm font-medium text-muted-foreground">Tracking number <span className="text-xs text-muted-foreground/60">(optional)</span></label>
@@ -367,6 +382,17 @@ export function OrdersSection() {
                 className="bg-secondary border-border focus:border-accent font-mono"
               />
             </div>
+            {/* Lets an order that already shipped be recorded without telling the
+                customer something they were told days ago. */}
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={shipNotify}
+                onChange={(e) => setShipNotify(e.target.checked)}
+                className="accent-[var(--accent)] h-3.5 w-3.5"
+              />
+              Email the customer
+            </label>
             {updateError && <p className="text-sm text-destructive">{updateError}</p>}
             <div className="flex gap-2 pt-1">
               <Button variant="outline" className="flex-1" onClick={() => { setShipTarget(null); setTrackingInput(""); }} disabled={isUpdating}>

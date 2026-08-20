@@ -109,13 +109,18 @@ function CropModal({
   src: string;
   busy: "remove-bg" | "enhance" | "studio" | null;
   onCancel: () => void;
-  onConfirm: (mode: "remove-bg" | "enhance", crop: CropRect) => void;
+  onConfirm: (mode: "remove-bg" | "enhance", crops: CropRect[]) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
-  // Selection box in pixels, relative to the rendered image
-  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Committed selections, in pixels relative to the rendered image. Each is
+  // segmented separately and composited back together, so several subjects in
+  // one photo can be kept without keeping what sits between them.
+  const [boxes, setBoxes] = useState<{ x: number; y: number; w: number; h: number }[]>([]);
+  // The box currently being dragged out, not yet committed.
+  const [draft, setDraft] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const [drawing, setDrawing] = useState(false);
   const startRef = useRef<{ x: number; y: number } | null>(null);
+  const MIN_PX = 6;
 
   function relative(e: React.MouseEvent) {
     const img = imgRef.current;
@@ -132,44 +137,55 @@ function CropModal({
     const p = relative(e);
     startRef.current = p;
     setDrawing(true);
-    setBox({ x: p.x, y: p.y, w: 0, h: 0 });
+    setDraft({ x: p.x, y: p.y, w: 0, h: 0 });
   }
   function onMouseMove(e: React.MouseEvent) {
     if (!drawing || !startRef.current) return;
     const p = relative(e);
     const s = startRef.current;
-    setBox({ x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) });
+    setDraft({ x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) });
   }
   function onMouseUp() {
+    if (!drawing) return;
     setDrawing(false);
+    // Commit the draft as another region. A stray click (or a box too small to
+    // hold a subject) is discarded rather than added.
+    if (draft && draft.w >= MIN_PX && draft.h >= MIN_PX) {
+      setBoxes((prev) => [...prev, draft]);
+    }
+    setDraft(null);
   }
 
   function confirm(mode: "remove-bg" | "enhance") {
     const img = imgRef.current;
-    if (!img || !box || box.w < 6 || box.h < 6) {
-      // No usable selection — process the whole image
-      onConfirm(mode, { x: 0, y: 0, w: 1, h: 1 });
+    if (!img || boxes.length === 0) {
+      // Nothing selected — process the whole image
+      onConfirm(mode, []);
       return;
     }
     const b = img.getBoundingClientRect();
-    onConfirm(mode, {
-      x: box.x / b.width,
-      y: box.y / b.height,
-      w: box.w / b.width,
-      h: box.h / b.height,
-    });
+    onConfirm(
+      mode,
+      boxes.map((box) => ({
+        x: box.x / b.width,
+        y: box.y / b.height,
+        w: box.w / b.width,
+        h: box.h / b.height,
+      }))
+    );
   }
 
-  const hasSelection = !!box && box.w >= 6 && box.h >= 6;
+  const hasSelection = boxes.length > 0;
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !busy) onCancel(); }}>
       <DialogContent className="bg-card border-border sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Select the item to keep</DialogTitle>
+          <DialogTitle>Select what to keep</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground -mt-1">
-          Drag a box around the one item you want. Everything outside the box is discarded before the background is removed.
+          Drag a box around each item you want to keep — add as many as you need. Everything outside them is discarded, and
+          each one has its background removed on its own, so items keep their spacing. Select nothing to process the whole photo.
         </p>
         <div className="relative select-none overflow-hidden rounded-lg border border-border bg-secondary/40 flex items-center justify-center" style={{ maxHeight: "55vh" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -184,24 +200,54 @@ function CropModal({
             onMouseLeave={onMouseUp}
             className="max-h-[55vh] w-auto object-contain cursor-crosshair"
           />
-          {box && (
+          {/* Committed regions — numbered, each removable without clearing the rest */}
+          {boxes.map((box, i) => (
             <div
-              className="pointer-events-none absolute border-2 border-accent bg-accent/10"
+              key={i}
+              className="absolute border-2 border-accent bg-accent/10"
               style={{ left: box.x, top: box.y, width: box.w, height: box.h,
                 // offset by the image's position within the flex container
+                transform: `translate(${(imgRef.current?.offsetLeft ?? 0)}px, ${(imgRef.current?.offsetTop ?? 0)}px)` }}
+            >
+              <span className="pointer-events-none absolute left-0 top-0 bg-accent px-1.5 py-0.5 text-[10px] font-bold leading-none text-accent-foreground">
+                {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => setBoxes((prev) => prev.filter((_, j) => j !== i))}
+                disabled={!!busy}
+                title="Remove this selection"
+                className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white shadow disabled:opacity-40"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {/* The box being dragged out right now */}
+          {draft && (
+            <div
+              className="pointer-events-none absolute border-2 border-dashed border-accent bg-accent/10"
+              style={{ left: draft.x, top: draft.y, width: draft.w, height: draft.h,
                 transform: `translate(${(imgRef.current?.offsetLeft ?? 0)}px, ${(imgRef.current?.offsetTop ?? 0)}px)` }}
             />
           )}
         </div>
         <div className="flex items-center justify-between gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => setBox(null)}
-            disabled={!box || !!busy}
-            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            Reset selection
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { setBoxes([]); setDraft(null); }}
+              disabled={!hasSelection || !!busy}
+              className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              Clear all
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {hasSelection
+                ? `${boxes.length} area${boxes.length === 1 ? "" : "s"} selected`
+                : "Whole photo"}
+            </span>
+          </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onCancel} disabled={!!busy}>Cancel</Button>
             <Button
@@ -211,7 +257,11 @@ function CropModal({
               className="bg-accent hover:bg-accent/90 text-accent-foreground"
             >
               <Scissors className="w-3.5 h-3.5 mr-1.5" />
-              {busy === "remove-bg" ? "Processing…" : hasSelection ? "Remove BG from selection" : "Remove BG (whole image)"}
+              {busy === "remove-bg"
+                ? "Processing…"
+                : hasSelection
+                  ? `Remove BG from ${boxes.length} area${boxes.length === 1 ? "" : "s"}`
+                  : "Remove BG (whole image)"}
             </Button>
           </div>
         </div>
@@ -286,7 +336,7 @@ function MultiImageUploader({
     setUrlInput("");
   }
 
-  async function runAi(mode: "remove-bg" | "enhance", crop?: { x: number; y: number; w: number; h: number }) {
+  async function runAi(mode: "remove-bg" | "enhance", crops?: CropRect[]) {
     const source = urlInput.trim() || coverUrl.trim();
     if (!source) return;
     try {
@@ -302,7 +352,7 @@ function MultiImageUploader({
       const res = await fetch("/api/store/remove-bg", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: source, mode, ...(crop ? { crop } : {}) }),
+        body: JSON.stringify({ url: source, mode, ...(crops?.length ? { crops } : {}) }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !data.url) {
@@ -471,7 +521,7 @@ function MultiImageUploader({
           src={cropSrc}
           busy={processing}
           onCancel={() => setCropSrc(null)}
-          onConfirm={(mode, crop) => runAi(mode, crop)}
+          onConfirm={(mode, crops) => runAi(mode, crops)}
         />
       )}
 
