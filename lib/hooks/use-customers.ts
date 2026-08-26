@@ -1,20 +1,15 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CustomerRow = any;
 
 export function useCustomers() {
   return useQuery({
     queryKey: ["customers"],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*, deals(id, name, value, stage)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => crmApi.get<CustomerRow[]>("customers"),
   });
 }
 
@@ -35,38 +30,25 @@ export interface CustomerPayload {
 
 export function useCreateCustomer() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async (payload: CustomerPayload) => {
-      const { data, error } = await supabase.from("customers").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (payload: CustomerPayload) => crmApi.post<CustomerRow>("customers", payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
   });
 }
 
 export function useUpdateCustomer() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<CustomerPayload> }) => {
-      const { data, error } = await supabase.from("customers").update(payload).eq("id", id).select().single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<CustomerPayload> }) =>
+      crmApi.patch<CustomerRow>(`customers/${id}`, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
   });
 }
 
 export function useDeleteCustomer() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => crmApi.del<null>(`customers/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["customers"] }),
   });
 }

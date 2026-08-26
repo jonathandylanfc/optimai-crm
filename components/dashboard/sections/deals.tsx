@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
 import { useDeals } from "@/lib/hooks/use-deals";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DealForm } from "@/components/dashboard/deal-form";
@@ -42,9 +42,7 @@ export function DealsSection() {
 
   const updateDeal = useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) => {
-      const supabase = createClient();
-      const { error } = await supabase.from("deals").update(payload).eq("id", id);
-      if (error) throw error;
+      await crmApi.patch(`deals/${id}`, payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deals"] });
@@ -55,9 +53,7 @@ export function DealsSection() {
 
   const deleteDeal = useMutation({
     mutationFn: async (id: string) => {
-      const supabase = createClient();
-      const { error } = await supabase.from("deals").delete().eq("id", id);
-      if (error) throw error;
+      await crmApi.del(`deals/${id}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deals"] });

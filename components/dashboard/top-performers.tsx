@@ -2,19 +2,16 @@
 
 import { Trophy, TrendingUp, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function useTopPerformers() {
   return useQuery({
     queryKey: ["top-performers"],
     queryFn: async () => {
-      const supabase = createClient();
-      const { data: deals, error } = await supabase
-        .from("deals")
-        .select("value, team_member_id, team_members(id, name)")
-        .eq("stage", "closed_won");
-      if (error) throw error;
+      const deals = await crmApi.get<
+        { value: number; team_member_id: string; team_members: { id: string; name: string } | null }[]
+      >("top-performers");
 
       const map = new Map<string, { name: string; deals: number; revenue: number }>();
       for (const d of deals ?? []) {

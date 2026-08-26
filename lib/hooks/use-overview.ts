@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -9,18 +9,16 @@ export function useOverviewMetrics() {
   return useQuery({
     queryKey: ["overview", "metrics"],
     queryFn: async () => {
-      const supabase = createClient();
-      const [dealsRes, customersRes, storeRes, ordersRes] = await Promise.all([
-        supabase.from("deals").select("id, value, stage, created_at"),
-        supabase.from("customers").select("id, created_at"),
+      // Supabase reads now go through /api/crm/overview, which runs them
+      // server-side with the service role key.
+      const [crmRes, storeRes, ordersRes] = await Promise.all([
+        fetch("/api/crm/overview").then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/ca-analytics").then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/ca-orders").then((r) => (r.ok ? r.json() : [])).catch(() => []),
       ]);
-      if (dealsRes.error) throw dealsRes.error;
-      if (customersRes.error) throw customersRes.error;
 
-      const deals = dealsRes.data ?? [];
-      const customers = customersRes.data ?? [];
+      const deals: { id: string; value: number; stage: string; created_at: string }[] = crmRes?.deals ?? [];
+      const customers: { id: string; created_at: string }[] = crmRes?.customers ?? [];
       const storeOrders: { status: string; totalCents: number; createdAt: string }[] = ordersRes ?? [];
 
       // Build 12-month revenue chart from store orders

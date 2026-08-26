@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,19 +38,14 @@ export function DealForm({
   const { data: teamMembers } = useQuery({
     queryKey: ["team-members", "options"],
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.from("team_members").select("id, name").order("name");
-      if (error) throw error;
-      return data ?? [];
+      return crmApi.get<{ id: string; name: string }[]>("team?view=basic");
     },
     enabled: open,
   });
 
   const createDeal = useMutation({
     mutationFn: async (payload: Record<string, unknown>) => {
-      const supabase = createClient();
-      const { error } = await supabase.from("deals").insert(payload);
-      if (error) throw error;
+      await crmApi.post("deals", payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pipeline"] });

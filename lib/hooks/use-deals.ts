@@ -1,31 +1,23 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DealRow = any;
 
 export function useDeals() {
   return useQuery({
     queryKey: ["deals"],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("deals")
-        .select("*, customers(name, company), team_members(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => crmApi.get<DealRow[]>("deals"),
   });
 }
 
 export function useUpdateDealStage() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
-      const { error } = await supabase.from("deals").update({ stage }).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, stage }: { id: string; stage: string }) =>
+      crmApi.patch<DealRow>(`deals/${id}`, { stage }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
   });
 }

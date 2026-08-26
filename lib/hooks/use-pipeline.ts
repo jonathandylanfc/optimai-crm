@@ -2,30 +2,29 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase-client";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PipelineRow = any;
 
 export function usePipeline() {
   return useQuery({
     queryKey: ["pipeline"],
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("deals")
-        .select("id, company, value, stage, probability, days_in_stage, team_members(name)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const res = await fetch("/api/crm/pipeline");
+      if (!res.ok) throw new Error("Failed to load pipeline");
+      return (await res.json()) as PipelineRow[];
     },
   });
 }
 
+// Was a Supabase Realtime subscription over the anon key. Realtime honours RLS,
+// so with anon denied it delivers nothing — and the subscription needed that
+// public key in the browser, which is what we're removing. Polling instead:
+// this is a low-volume table and the section is only open while someone is
+// looking at it.
 export function usePipelineRealtime(refetch: () => void) {
-  const supabase = createClient();
   useEffect(() => {
-    const channel = supabase
-      .channel("pipeline-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "deals" }, refetch)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    const id = setInterval(refetch, 30_000);
+    return () => clearInterval(id);
+  }, [refetch]);
 }

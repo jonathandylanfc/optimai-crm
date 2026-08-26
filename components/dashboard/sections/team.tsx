@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Trophy, Target, TrendingUp, TrendingDown, Mail, Phone, MoreHorizontal, Plus, Pencil, Trash2, User } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase-client";
+import { crmApi } from "@/lib/crm-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,52 +40,33 @@ interface MemberPayload {
 }
 
 function useTeam() {
-  const supabase = createClient();
   return useQuery({
     queryKey: ["team"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("team_members")
-        .select("*, deals(id, value, stage)")
-        .order("rank", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return (data ?? []) as MemberRow[];
-    },
+    queryFn: () => crmApi.get<MemberRow[]>("team"),
   });
 }
 
 function useCreateMember() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async (payload: MemberPayload) => {
-      const { error } = await supabase.from("team_members").insert(payload);
-      if (error) throw error;
-    },
+    mutationFn: (payload: MemberPayload) => crmApi.post("team", payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
   });
 }
 
 function useUpdateMember() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<MemberPayload> }) => {
-      const { error } = await supabase.from("team_members").update(payload).eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<MemberPayload> }) =>
+      crmApi.patch(`team/${id}`, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
   });
 }
 
 function useDeleteMember() {
   const qc = useQueryClient();
-  const supabase = createClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("team_members").delete().eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => crmApi.del(`team/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
   });
 }
