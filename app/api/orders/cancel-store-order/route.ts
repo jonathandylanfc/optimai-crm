@@ -1,14 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { activeStore } from "@/lib/stores";
-
-function getCrmClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -34,14 +26,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Also update Supabase if there's a synced CRM order
-  const crm = getCrmClient();
-  if (crm) {
-    await crm
-      .from("orders")
-      .update({ status: "cancelled" })
-      .like("notes", `Store order #${storeOrderId}%`);
-  }
+  // No Supabase mirror to update any more — the store is the source of truth
+  // and the CRM reads its orders from there.
 
   return NextResponse.json({ success: true });
 }

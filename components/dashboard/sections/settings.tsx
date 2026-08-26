@@ -46,8 +46,6 @@ function StatusBadge({ ok }: { ok: boolean }) {
 
 export function SettingsSection() {
   const qc = useQueryClient();
-  const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
 
   const { data: status, isLoading, refetch, isFetching } = useQuery<StatusResponse>({
     queryKey: ["settings-status"],
@@ -58,26 +56,6 @@ export function SettingsSection() {
     },
     staleTime: 30_000,
   });
-
-  async function runSync() {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await fetch("/api/orders/sync-store", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        setSyncResult(`Sync failed: ${data.error ?? res.status}`);
-      } else {
-        setSyncResult(`Done — ${data.synced} new order${data.synced === 1 ? "" : "s"} synced, ${data.skipped} already up to date.`);
-        qc.invalidateQueries({ queryKey: ["ca-orders"] });
-        qc.invalidateQueries({ queryKey: ["overview"] });
-      }
-    } catch {
-      setSyncResult("Sync failed: network error");
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   const services = status
     ? [
@@ -188,39 +166,6 @@ export function SettingsSection() {
           <CardDescription>Keep the CRM in sync with the storefront</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">
-                <ArrowDownUp className="w-5 h-5 text-accent" />
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Sync store orders</p>
-                <p className="text-sm text-muted-foreground">
-                  Import any store orders missing from the CRM (new orders sync automatically)
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={runSync}
-              disabled={syncing}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground"
-            >
-              {syncing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Syncing…
-                </>
-              ) : (
-                "Run Sync"
-              )}
-            </Button>
-          </div>
-          {syncResult && (
-            <p className={`text-sm px-1 ${syncResult.startsWith("Done") ? "text-accent" : "text-destructive"}`}>
-              {syncResult}
-            </p>
-          )}
-
           <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 border border-border">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-accent/20 flex items-center justify-center">

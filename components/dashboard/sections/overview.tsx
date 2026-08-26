@@ -2,8 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { RevenueChart } from "@/components/dashboard/charts/revenue-chart";
-import { PipelineOverview } from "@/components/dashboard/charts/pipeline-overview";
-import { RecentDeals } from "@/components/dashboard/recent-deals";
 import { DollarSign, TrendingUp, Users, Target, ShoppingCart, Package, Calendar } from "lucide-react";
 import { useOverviewMetrics } from "@/lib/hooks/use-overview";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,9 +41,9 @@ export function OverviewSection() {
       bg: "bg-chart-3/10",
     },
     {
-      label: "Active CRM Deals",
-      value: String(data?.activeDeals ?? 0),
-      sub: `${data?.conversionRate ?? 0}% win rate`,
+      label: "Accounts, No Order Yet",
+      value: String(data?.newLeads ?? 0),
+      sub: "Registered but haven't bought",
       icon: Target,
       color: "text-foreground",
       bg: "bg-secondary",
@@ -79,17 +77,12 @@ export function OverviewSection() {
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <RevenueChart data={data?.revenue} isLoading={isLoading} />
-        </div>
-        <PipelineOverview data={data?.deals} isLoading={isLoading} />
+      <div className="grid grid-cols-1 gap-6">
+        <RevenueChart data={data?.revenue} isLoading={isLoading} />
       </div>
 
       {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentDeals data={data?.deals} isLoading={isLoading} />
-
+      <div className="grid grid-cols-1 gap-6">
         {/* Top products */}
         <div className="bg-card border border-border rounded-xl p-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center gap-2 mb-5">

@@ -1,23 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { activeStore } from "@/lib/stores";
 
-// Store statuses → CRM (Supabase) statuses
-const STATUS_MAP: Record<string, string> = {
-  pending: "pending",
-  processing: "processing",
-  shipped: "processing",
-  delivered: "fulfilled",
-  cancelled: "cancelled",
-};
-
-function getCrmClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -59,14 +43,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Mirror the status onto the synced Supabase order record
-  const crm = getCrmClient();
-  if (crm && status && STATUS_MAP[status]) {
-    await crm
-      .from("orders")
-      .update({ status: STATUS_MAP[status] })
-      .like("notes", `Store order #${storeOrderId}%`);
-  }
+  // The Supabase mirror of orders is gone — the CRM reads orders from the store,
+  // which is the source of truth this route just wrote to. It also used to run
+  // unguarded right here, so an unreachable Supabase reported "Update failed"
+  // for an order that had in fact been marked shipped and the customer emailed.
 
   return NextResponse.json(await storeRes.json());
 }

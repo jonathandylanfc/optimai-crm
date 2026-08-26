@@ -13,12 +13,9 @@ interface HeaderProps {
 
 const sectionTitles: Record<Section, string> = {
   overview: "Overview",
-  pipeline: "Pipeline",
-  deals: "Deals",
   orders: "Orders",
   store: "Store Analytics",
   customers: "Customers",
-  team: "Team Performance",
   forecasting: "Forecasting",
   reports: "Reports",
   settings: "Settings",

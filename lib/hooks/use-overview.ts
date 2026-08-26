@@ -9,16 +9,14 @@ export function useOverviewMetrics() {
   return useQuery({
     queryKey: ["overview", "metrics"],
     queryFn: async () => {
-      // Supabase reads now go through /api/crm/overview, which runs them
-      // server-side with the service role key.
-      const [crmRes, storeRes, ordersRes] = await Promise.all([
-        fetch("/api/crm/overview").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      // Everything here comes from the storefront now. The deal/lead metrics
+      // that used to sit alongside these were B2B sales-pipeline figures with
+      // nothing feeding them.
+      const [storeRes, ordersRes, customersRes] = await Promise.all([
         fetch("/api/ca-analytics").then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetch("/api/ca-orders").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch("/api/ca-customers").then((r) => (r.ok ? r.json() : [])).catch(() => []),
       ]);
-
-      const deals: { id: string; value: number; stage: string; created_at: string }[] = crmRes?.deals ?? [];
-      const customers: { id: string; created_at: string }[] = crmRes?.customers ?? [];
       const storeOrders: { status: string; totalCents: number; createdAt: string }[] = ordersRes ?? [];
 
       // Build 12-month revenue chart from store orders
@@ -48,9 +46,10 @@ export function useOverviewMetrics() {
       const storeRevenue = storeRevenueCents / 100;
       const storeRevenueThisMonth = Math.round((storeRes?.revenueThisMonthCents ?? 0) / 100);
 
-      const activeDeals = deals.filter((d: { stage: string }) => !["closed_won", "closed_lost"].includes(d.stage)).length;
-      const closedWon = deals.filter((d: { stage: string }) => d.stage === "closed_won");
-      const conversionRate = deals.length > 0 ? ((closedWon.length / deals.length) * 100).toFixed(1) : "0";
+      // Registered accounts that haven't ordered yet — the storefront's
+      // equivalent of a lead.
+      const accounts: { orderCount: number }[] = customersRes ?? [];
+      const newLeads = accounts.filter((c) => (c.orderCount ?? 0) === 0).length;
 
       // Store customers = unique emails from orders
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,11 +63,8 @@ export function useOverviewMetrics() {
         storeOrderCount: storeRes?.orderCount ?? 0,
         storeOrdersThisMonth: storeRes?.ordersThisMonthCount ?? 0,
         storeCustomerCount,
-        activeDeals,
-        conversionRate,
-        newLeads: customers.length,
+        newLeads,
         revenue: storeMonthlyRevenue,
-        deals,
         topProducts: storeRes?.topProducts ?? [],
       };
     },
