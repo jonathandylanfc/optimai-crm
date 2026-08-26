@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
+import { fetchExternalImage } from "@/lib/safe-fetch";
 
 type Mode = "remove-bg" | "enhance";
 type CropRect = { x: number; y: number; w: number; h: number };
@@ -84,15 +85,16 @@ export async function POST(req: NextRequest) {
 
   let imageBuffer: Buffer;
   try {
-    const imgRes = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; image-fetcher/1.0)" },
-    });
+    const imgRes = await fetchExternalImage(url);
     if (!imgRes.ok) {
       return NextResponse.json({ error: `Failed to fetch image: ${imgRes.status}` }, { status: 400 });
     }
     imageBuffer = Buffer.from(await imgRes.arrayBuffer());
   } catch (err) {
-    return NextResponse.json({ error: `Could not fetch image: ${String(err)}` }, { status: 400 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Could not fetch image." },
+      { status: 400 }
+    );
   }
 
   let pngBuffer: Buffer;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchExternalImage } from "@/lib/safe-fetch";
 
 // Generative "studio reshoot": sends the product photo to Google's Gemini
 // image model with a prompt to place it on a clean background with better
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
   let base64: string;
   let sourceMime = "image/png";
   try {
-    const imgRes = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; image-fetcher/1.0)" } });
+    const imgRes = await fetchExternalImage(url);
     if (!imgRes.ok) {
       return NextResponse.json({ error: `Failed to fetch image: ${imgRes.status}` }, { status: 400 });
     }
